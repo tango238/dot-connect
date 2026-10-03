@@ -5,6 +5,21 @@ herdr上のClaude Code / Codex CLIセッションとして投入(dispatch)し、
 同じ画面で追える。ブラウザ版と、同じUIを同梱したデスクトップアプリ(Tauri)
 の2形態で動く。
 
+![TODO一覧](docs/images/todos.png)
+
+## スクリーンショット
+
+| TODO詳細(PR紐付け・添付・ポモドーロ・作業ログ) | マイルストーン |
+| --- | --- |
+| ![TODO詳細ダイアログ](docs/images/todo-detail.png) | ![マイルストーン](docs/images/milestones.png) |
+
+| 計画(マイルストーンのタイムライン) |
+| --- |
+| ![計画](docs/images/plan.png) |
+
+スクリーンショットのデータは `scripts/seed-demo.ts` で再現できる(手順は
+[デモデータ](#デモデータ)を参照)。
+
 ## 主な機能
 
 - **TODO**: 説明・優先度・期日・作業ディレクトリ・モデルを持つTODOの管理。
@@ -351,6 +366,18 @@ quarantine属性が付かないので、この操作は要らない。
 bun test               # 全テスト
 bun test --coverage    # カバレッジ付き
 bun run typecheck      # tsc --noEmit
+```
+
+## デモデータ
+
+スクリーンショット用のサンプル(ラベル3件・マイルストーン3件・TODO 12件)を
+HTTP API経由で投入するスクリプトがある。普段使いのDBを汚さないよう、**必ず
+別の `DB_PATH` で起動したサーバーに向けて**実行すること。
+
+```bash
+DB_PATH=/tmp/dot-connect-demo.db PORT=5858 bun run src/server.ts
+# 別のターミナルで
+DOT_CONNECT_URL=http://127.0.0.1:5858 bun run scripts/seed-demo.ts
 ```
 
 ## 安全上の注意

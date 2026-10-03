@@ -20,6 +20,7 @@ coverage/
 .worktrees/
 docs/superpowers/
 .claude/settings.local.json
+.playwright-mcp/
 
 # OS / editor / env
 .DS_Store
