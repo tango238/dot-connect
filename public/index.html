@@ -1,0 +1,841 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>dot-connect — TODO × マイルストーン × herdr</title>
+<script>
+  // Applies the persisted sidebar collapsed state before first paint, so
+  // there's no flash of the expanded sidebar on load. Kept as a tiny
+  // synchronous inline script (rather than waiting for main.js, which is a
+  // deferred module) specifically for that timing. The storage key here
+  // must stay in sync by hand with SIDEBAR_STORAGE_KEY in
+  // js/lib/sidebarState.js — main.js's own toggle logic reads/writes
+  // through that module, this is only a one-time read for the initial class.
+  try {
+    if (localStorage.getItem('dc.sidebarCollapsed') === '1') {
+      document.documentElement.classList.add('sidebar-collapsed')
+    }
+  } catch (err) {
+    // Storage can be unavailable (private browsing, disabled cookies) —
+    // fall back to expanded rather than breaking page load.
+  }
+</script>
+<style>
+:root {
+  --bg: #0e1116;
+  --bg-raise: #161b22;
+  --bg-hover: #1c2330;
+  --border: #2a3140;
+  --text: #dce3ec;
+  --text-dim: #8b96a5;
+  --text-faint: #5c6674;
+  --accent: #3fb6a8;
+  --accent-dim: rgba(63,182,168,.14);
+  --working: #e3b341;
+  --done-unread: #4ac26b;
+  --blocked: #f85149;
+  --idle: #6e7a8a;
+  --ms-a: #6ca4f8;
+  --ms-b: #d29af5;
+  --ms-c: #f0a35e;
+  --radius: 8px;
+  /* System-font stacks only — no CDN webfonts, so the UI looks right
+     even when opened offline. */
+  --mono: ui-monospace, "SF Mono", "SFMono-Regular", Menlo, Consolas,
+    "Liberation Mono", monospace;
+  --sans: -apple-system, BlinkMacSystemFont, "Hiragino Kaku Gothic ProN",
+    "Hiragino Sans", "Yu Gothic UI", "Yu Gothic", Meiryo, Arial, sans-serif;
+}
+@media (prefers-color-scheme: light) {
+  :root {
+    --bg: #f4f6f9; --bg-raise: #ffffff; --bg-hover: #eef1f6;
+    --border: #d7dde6; --text: #1c2330; --text-dim: #5c6674; --text-faint: #98a2b0;
+    --accent-dim: rgba(63,182,168,.12);
+  }
+}
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html, body { height: 100%; }
+body {
+  font-family: var(--sans);
+  background: var(--bg);
+  color: var(--text);
+  font-size: 14px;
+  line-height: 1.6;
+}
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation: none !important; transition: none !important; }
+}
+
+/* ---------- layout shell ---------- */
+.shell { display: flex; height: 100vh; overflow: hidden; }
+.sidebar {
+  width: 232px; flex-shrink: 0; background: var(--bg-raise);
+  border-right: 1px solid var(--border);
+  display: flex; flex-direction: column; padding: 16px 12px;
+  transition: width .15s ease;
+}
+.sidebar-toggle {
+  display: flex; align-items: center; justify-content: center;
+  width: 26px; height: 26px; margin-bottom: 10px; flex-shrink: 0;
+  border: 1px solid var(--border); border-radius: 6px;
+  background: none; color: var(--text-dim); font: inherit; font-size: 12px; cursor: pointer;
+}
+.sidebar-toggle:hover { background: var(--bg-hover); color: var(--text); }
+.sidebar-toggle:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.logo { display: flex; align-items: center; gap: 8px; padding: 4px 8px 16px; }
+.logo-dot { width: 10px; height: 10px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 8px var(--accent); flex-shrink: 0; }
+.logo-name { font-weight: 700; letter-spacing: .02em; font-size: 15px; white-space: nowrap; }
+.logo-name span { color: var(--accent); }
+nav { display: flex; flex-direction: column; gap: 2px; }
+.nav-btn {
+  display: flex; align-items: center; gap: 10px;
+  padding: 8px 10px; border: none; background: none; color: var(--text-dim);
+  font: inherit; font-weight: 500; border-radius: var(--radius); cursor: pointer; text-align: left;
+}
+.nav-btn:hover { background: var(--bg-hover); color: var(--text); }
+.nav-btn[aria-current="page"] { background: var(--accent-dim); color: var(--accent); }
+.nav-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.nav-btn .n-ico { width: 18px; text-align: center; font-size: 15px; flex-shrink: 0; }
+.nav-count {
+  margin-left: auto; font-size: 11px; font-family: var(--mono);
+  background: var(--bg-hover); color: var(--text-dim);
+  padding: 1px 7px; border-radius: 10px;
+}
+.side-sec { margin-top: 22px; }
+.side-label { font-size: 11px; font-weight: 600; color: var(--text-faint); text-transform: uppercase; letter-spacing: .08em; padding: 0 10px 6px; }
+.side-ms { display: flex; align-items: center; gap: 8px; padding: 6px 10px; border-radius: var(--radius); cursor: pointer; }
+.side-ms:hover { background: var(--bg-hover); }
+.side-ms .ms-dot { width: 8px; height: 8px; border-radius: 3px; flex-shrink: 0; }
+.side-ms .ms-name { font-size: 12.5px; color: var(--text-dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.side-ms .ms-pct { margin-left: auto; font-family: var(--mono); font-size: 11px; color: var(--text-faint); }
+.herdr-status {
+  margin-top: auto; padding: 10px 12px; border: 1px solid var(--border);
+  border-radius: var(--radius); font-size: 12px; color: var(--text-dim);
+}
+.herdr-status .hs-row { display: flex; align-items: center; gap: 8px; white-space: nowrap; font-size: 11.5px; }
+.herdr-status .hs-row + .hs-row { margin-top: 4px; }
+.hs-pulse { width: 8px; height: 8px; border-radius: 50%; background: var(--done-unread); animation: pulse 2.2s infinite; flex-shrink: 0; }
+.hs-pulse.disconnected { background: var(--blocked); animation: none; }
+@keyframes pulse { 0%,100% { opacity: 1 } 50% { opacity: .35 } }
+
+/* ---------- sidebar collapsed state ---------- */
+/* Icon-only rail rather than hiding the sidebar entirely, so nav stays
+   reachable and the state is easy to reverse (per the design request).
+   `sidebar-collapsed` is toggled on <html> (not `.sidebar` itself) so the
+   inline pre-paint script in <head> can apply it before `.sidebar` even
+   exists in the DOM — see that script's comment. */
+.sidebar-collapsed .sidebar { width: 60px; align-items: center; }
+.sidebar-collapsed .logo { padding: 4px 0 16px; }
+.sidebar-collapsed .logo-name,
+.sidebar-collapsed .nav-label,
+.sidebar-collapsed .nav-count,
+.sidebar-collapsed .side-sec,
+.sidebar-collapsed .hs-detail { display: none; }
+.sidebar-collapsed .nav-btn { justify-content: center; padding: 8px; width: 100%; }
+.sidebar-collapsed .herdr-status { display: flex; justify-content: center; padding: 10px 6px; }
+.sidebar-collapsed .herdr-status .hs-row + .hs-row { margin-top: 0; }
+
+/* ---------- pomodoro timer (sidebar) ---------- */
+/* One-shot focus timer under the TODO nav item. Big blocky digits in the
+   "working" yellow; the 10-cell bar fills as time elapses. Stays on system
+   mono fonts (no webfont) like the rest of the UI. */
+.pomo {
+  margin: 6px 2px 8px; padding: 10px 10px 10px; border: 1px solid var(--border);
+  border-radius: var(--radius); background: var(--bg); display: flex; flex-direction: column; align-items: center; gap: 6px;
+}
+.pomo-head { display: flex; justify-content: center; max-width: 100%; }
+.pomo-label {
+  font: inherit; font-size: 11px; font-weight: 700; letter-spacing: .12em; color: var(--working);
+  border: 1px solid rgba(227,179,65,.55); outline: 1px solid rgba(227,179,65,.25); outline-offset: 2px;
+  padding: 1px 8px; background: none; max-width: 100%;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.pomo-label-link { cursor: pointer; letter-spacing: .04em; }
+.pomo-label-link:hover { background: rgba(227,179,65,.12); }
+.pomo-label-link:focus-visible { outline: 2px solid var(--accent); }
+.pomo-time {
+  font-family: var(--mono); font-weight: 800; font-size: 38px; line-height: 1.1;
+  color: var(--working); letter-spacing: .04em; font-variant-numeric: tabular-nums;
+  text-shadow: 0 0 10px rgba(227,179,65,.25);
+}
+.pomo[data-status="paused"] .pomo-time { opacity: .6; }
+.pomo[data-status="finished"] .pomo-time { animation: pulse 1.4s infinite; }
+.pomo-sub { font-family: var(--mono); font-size: 11px; color: var(--text-dim); margin-top: -4px; }
+#pomo-bar-wrap { width: 100%; }
+.pomo-bar { display: grid; grid-template-columns: repeat(10, 1fr); width: 100%; border: 1px solid rgba(227,179,65,.4); }
+.pomo-bar i { height: 12px; border-left: 1px solid rgba(227,179,65,.25); }
+.pomo-bar i:first-child { border-left: none; }
+.pomo-bar i.on { background: rgba(227,179,65,.6); }
+.pomo-controls, .pomo-setup { display: flex; gap: 4px; width: 100%; }
+.pomo-btn {
+  flex: 1; font: inherit; font-size: 11px; font-weight: 600; cursor: pointer; white-space: nowrap;
+  padding: 4px 2px; border-radius: 6px; border: 1px solid var(--border);
+  background: var(--bg-raise); color: var(--text);
+}
+.pomo-btn:hover { background: var(--bg-hover); }
+.pomo-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.pomo-setup { align-items: center; }
+.pomo-setup input {
+  width: 52px; font: inherit; font-family: var(--mono); font-size: 12px; text-align: right;
+  background: var(--bg-raise); color: var(--text); border: 1px solid var(--border); border-radius: 6px; padding: 3px 6px;
+}
+.pomo-setup input:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
+.pomo-unit { font-size: 11px; color: var(--text-dim); }
+.pomo-volume { display: flex; align-items: center; gap: 6px; width: 100%; }
+.pomo-mute {
+  font: inherit; font-size: 12px; line-height: 1; cursor: pointer; padding: 2px 4px;
+  background: none; border: 1px solid transparent; border-radius: 6px;
+}
+.pomo-mute:hover { background: var(--bg-hover); }
+.pomo-mute:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.pomo-volume input[type="range"] { flex: 1; min-width: 0; accent-color: var(--working); cursor: pointer; }
+.pomo-volume-value { font-family: var(--mono); font-size: 11px; color: var(--text-dim); width: 4ch; text-align: right; }
+/* Collapsed rail: just the remaining time, and only while a timer exists. */
+.sidebar-collapsed .pomo { padding: 6px 2px; margin: 4px 0; width: 100%; }
+.sidebar-collapsed .pomo[data-status="idle"],
+.sidebar-collapsed .pomo-head,
+.sidebar-collapsed .pomo-sub,
+.sidebar-collapsed .pomo-bar,
+.sidebar-collapsed .pomo-controls,
+.sidebar-collapsed .pomo-setup,
+.sidebar-collapsed .pomo-volume { display: none; }
+.sidebar-collapsed .pomo-time { font-size: 12px; text-shadow: none; }
+/* ---------- pomodoro panel (TODO detail) ---------- */
+.pomo-start-row { display: flex; align-items: center; gap: 8px; padding: 4px; }
+.pomo-start-row input {
+  width: 64px; font: inherit; font-family: var(--mono); font-size: 13px; text-align: right;
+  background: var(--bg); color: var(--text); border: 1px solid var(--border); border-radius: 6px; padding: 5px 8px;
+}
+.pomo-start-row input:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
+.pomo-running-note { font-size: 12.5px; color: var(--working); padding: 4px; }
+
+/* ---------- TODO due date badge ---------- */
+.due-badge { font-size: 10.5px; font-weight: 700; font-family: var(--mono); padding: 1px 7px; border-radius: 8px; letter-spacing: .02em; }
+.due-badge.due-overdue { background: rgba(248,81,73,.16); color: var(--blocked); border: 1px solid rgba(248,81,73,.4); }
+.due-badge.due-soon { background: rgba(227,179,65,.16); color: var(--working); border: 1px solid rgba(227,179,65,.4); }
+.due-badge.due-normal { background: none; color: var(--text-faint); border: 1px dashed var(--border); }
+
+/* ---------- TODO priority badge ---------- */
+.prio-badge { font-size: 10.5px; font-weight: 700; font-family: var(--mono); padding: 1px 7px; border-radius: 8px; letter-spacing: .02em; }
+.prio-badge.prio-high { background: rgba(248,81,73,.16); color: var(--blocked); border: 1px solid rgba(248,81,73,.4); }
+.prio-badge.prio-low { background: none; color: var(--text-faint); border: 1px dashed var(--border); }
+.model-badge { font-size: 10.5px; font-family: var(--mono); color: var(--text-faint); border: 1px dashed var(--border); padding: 1px 7px; border-radius: 8px; }
+
+main { flex: 1; overflow-y: auto; }
+.page { display: none; padding: 28px 32px 64px; max-width: 1080px; }
+.page.active { display: block; }
+.page-head { display: flex; align-items: baseline; gap: 14px; margin-bottom: 4px; flex-wrap: wrap; }
+h1 { font-size: 20px; font-weight: 700; }
+.page-sub { color: var(--text-dim); font-size: 13px; margin-bottom: 22px; }
+
+/* ---------- buttons ---------- */
+.btn {
+  font: inherit; font-size: 12.5px; font-weight: 600; cursor: pointer;
+  border-radius: 6px; padding: 5px 12px; border: 1px solid var(--border);
+  background: var(--bg-raise); color: var(--text);
+}
+.btn:hover { background: var(--bg-hover); }
+.btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.btn-accent { background: var(--accent); border-color: var(--accent); color: #06231f; }
+.btn-accent:hover { background: #4cc9ba; }
+.btn-ghost { border-color: transparent; background: none; color: var(--text-dim); }
+.btn-ghost:hover { color: var(--text); background: var(--bg-hover); }
+.btn:disabled { opacity: .45; cursor: not-allowed; }
+
+/* ---------- filters ---------- */
+.filters { display: flex; gap: 6px; margin-bottom: 16px; flex-wrap: wrap; }
+.chip {
+  font: inherit; font-size: 12px; font-weight: 500; cursor: pointer;
+  padding: 4px 12px; border-radius: 14px; border: 1px solid var(--border);
+  background: none; color: var(--text-dim);
+}
+.chip[aria-pressed="true"] { background: var(--accent-dim); border-color: var(--accent); color: var(--accent); }
+.chip:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+
+/* ---------- inline forms ---------- */
+.inline-form {
+  border: 1px solid var(--border); border-radius: var(--radius); background: var(--bg-raise);
+  padding: 14px 16px; margin-bottom: 18px; display: flex; flex-wrap: wrap; gap: 10px; align-items: flex-end;
+}
+.inline-form[hidden] { display: none; }
+.form-field { display: flex; flex-direction: column; gap: 4px; }
+.form-field.grow { flex: 1; min-width: 180px; }
+.form-field label { font-size: 11px; color: var(--text-faint); font-weight: 600; }
+.form-field input, .form-field select, .form-field textarea {
+  font: inherit; font-size: 13px; background: var(--bg); color: var(--text);
+  border: 1px solid var(--border); border-radius: 6px; padding: 6px 9px; min-width: 0;
+}
+.form-field input:focus, .form-field select:focus, .form-field textarea:focus {
+  outline: 2px solid var(--accent); outline-offset: 1px;
+}
+.form-field textarea { resize: vertical; min-height: 44px; }
+.form-actions { display: flex; gap: 8px; }
+.form-error { color: var(--blocked); font-size: 12px; width: 100%; }
+.field-hint { font-size: 11px; color: var(--text-faint); margin-top: 3px; }
+/* TODO create/edit forms only — one field per row instead of the default
+   wrapping row layout. A modifier (not a change to .inline-form itself) so
+   milestone/label/snippet forms, which still want the compact row layout,
+   are unaffected. */
+.inline-form.stacked { flex-direction: column; align-items: stretch; }
+.inline-form.stacked .form-field { flex: none; width: 100%; }
+
+/* ---------- todo rows ---------- */
+.todo-group-label { font-size: 12px; font-weight: 600; color: var(--text-faint); margin: 20px 0 8px; letter-spacing: .04em; }
+.todo {
+  display: grid; grid-template-columns: 26px 1fr auto; gap: 4px 12px;
+  padding: 12px 14px; border: 1px solid var(--border); border-radius: var(--radius);
+  background: var(--bg-raise); margin-bottom: 8px;
+}
+.todo:hover { border-color: var(--text-faint); }
+.todo.is-done { opacity: .62; }
+.todo-check {
+  width: 18px; height: 18px; margin-top: 3px; border-radius: 50%;
+  border: 1.5px solid var(--text-faint); background: none; cursor: pointer; flex-shrink: 0;
+  display: inline-flex; align-items: center; justify-content: center;
+  color: transparent; font-size: 11px;
+}
+.todo-check:hover { border-color: var(--done-unread); color: var(--done-unread); }
+.todo.is-done .todo-check { background: var(--done-unread); border-color: var(--done-unread); color: #06231f; }
+.todo-main { min-width: 0; }
+.todo-title { font-weight: 600; font-size: 14px; }
+.todo.is-done .todo-title { text-decoration: line-through; text-decoration-color: var(--text-faint); }
+.todo-meta { display: flex; align-items: center; gap: 8px; margin-top: 5px; flex-wrap: wrap; }
+.ms-chip {
+  display: inline-flex; align-items: center; gap: 5px; cursor: pointer;
+  font-size: 11px; font-weight: 600; padding: 1px 9px; border-radius: 10px;
+}
+.ms-chip:hover { filter: brightness(1.15); }
+.ms-chip .ms-dot { width: 6px; height: 6px; border-radius: 2px; }
+.ms-chip.none { color: var(--text-faint); border: 1px dashed var(--border); }
+.ms-chip.none:hover { color: var(--text); border-color: var(--text-faint); }
+.sess {
+  display: inline-flex; align-items: center; gap: 6px;
+  font-family: var(--mono); font-size: 11px; padding: 1px 8px;
+  border-radius: 10px; border: 1px solid var(--border); color: var(--text-dim);
+}
+.sess .s-dot { width: 7px; height: 7px; border-radius: 50%; }
+.sess.working .s-dot { background: var(--working); animation: pulse 1.4s infinite; }
+.sess.working { color: var(--working); border-color: rgba(227,179,65,.4); }
+.sess.done .s-dot { background: var(--done-unread); }
+.sess.done { color: var(--done-unread); border-color: rgba(74,194,107,.4); }
+.sess.blocked .s-dot { background: var(--blocked); animation: pulse 1s infinite; }
+.sess.blocked { color: var(--blocked); border-color: rgba(248,81,73,.4); }
+.sess.idle .s-dot { background: var(--idle); }
+.todo-actions { display: flex; gap: 6px; align-items: flex-start; }
+.todo-date { font-size: 11px; color: var(--text-faint); font-family: var(--mono); }
+.todo-inline-form { grid-column: 1 / -1; margin: 8px 0 0; }
+.todo-desc { font-size: 12.5px; color: var(--text-dim); margin-top: 3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+/* ---------- milestones page ---------- */
+.ms-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 14px; }
+.ms-card { border: 1px solid var(--border); border-radius: var(--radius); background: var(--bg-raise); padding: 18px; }
+.ms-card-head { display: flex; align-items: center; gap: 10px; margin-bottom: 6px; }
+.ms-card-head .ms-dot { width: 10px; height: 10px; border-radius: 3px; }
+.ms-card h2 { font-size: 15px; font-weight: 700; flex: 1; }
+.ms-due { font-family: var(--mono); font-size: 11px; color: var(--text-faint); }
+.ms-due.late { color: var(--blocked); }
+.ms-card-meta { margin-bottom: 10px; }
+.ms-desc { color: var(--text-dim); font-size: 12.5px; margin-bottom: 12px; }
+.ms-bar { height: 6px; border-radius: 3px; background: var(--bg-hover); overflow: hidden; margin-bottom: 6px; }
+.ms-bar > div { height: 100%; border-radius: 3px; transition: width .4s ease; }
+.ms-stats { display: flex; justify-content: space-between; font-size: 11.5px; color: var(--text-dim); font-family: var(--mono); margin-bottom: 12px; }
+.ms-todos { border-top: 1px solid var(--border); padding-top: 10px; display: flex; flex-direction: column; gap: 6px; }
+.ms-todo-line { display: flex; align-items: center; gap: 8px; font-size: 12.5px; color: var(--text-dim); }
+.ms-todo-line.d { color: var(--text-faint); text-decoration: line-through; }
+.ms-todo-line .st { font-size: 10px; width: 14px; text-align: center; }
+.ms-add { margin-top: 10px; width: 100%; text-align: center; border-style: dashed; color: var(--text-faint); }
+.ms-foot { display: flex; gap: 8px; margin-top: 10px; }
+.ms-foot .btn { flex: 1; text-align: center; }
+.ms-card.is-done { opacity: .6; }
+.ms-card.is-done h2 { text-decoration: line-through; text-decoration-color: var(--text-faint); }
+.ms-done-badge {
+  font-size: 10.5px; font-weight: 700; font-family: var(--mono);
+  color: var(--done-unread); border: 1px solid var(--done-unread);
+  border-radius: 4px; padding: 0 6px;
+}
+.ms-group-label { grid-column: 1 / -1; font-size: 12px; font-weight: 600; color: var(--text-faint); margin-top: 12px; letter-spacing: .04em; }
+.ms-group-label-tagged { display: flex; align-items: center; gap: 6px; }
+.ms-group-label-tagged .ms-dot { width: 8px; height: 8px; border-radius: 2px; flex-shrink: 0; }
+.ms-card-form { margin-top: 10px; }
+
+/* ---------- report page ---------- */
+.rep-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px; margin-bottom: 22px; }
+.rep-card { border: 1px solid var(--border); border-radius: var(--radius); background: var(--bg-raise); padding: 16px 18px; }
+.rep-num { font-size: 30px; font-weight: 700; font-family: var(--mono); line-height: 1.2; }
+.rep-num small { font-size: 14px; color: var(--text-faint); font-weight: 500; }
+.rep-label { font-size: 12px; color: var(--text-dim); margin-top: 2px; }
+.rep-delta { font-size: 11px; font-family: var(--mono); margin-top: 6px; }
+.rep-delta.up { color: var(--done-unread); }
+.rep-delta.warn { color: var(--working); }
+.rep-sec { border: 1px solid var(--border); border-radius: var(--radius); background: var(--bg-raise); padding: 20px 22px; margin-bottom: 14px; }
+.rep-sec h2 { font-size: 14px; font-weight: 700; display: flex; align-items: center; gap: 8px; margin-bottom: 12px; }
+.rep-sec h2 .ai-tag {
+  font-size: 10px; font-weight: 600; font-family: var(--mono);
+  color: var(--accent); border: 1px solid var(--accent); border-radius: 4px; padding: 0 6px;
+}
+.rep-sec p { color: var(--text-dim); font-size: 13.5px; margin-bottom: 10px; }
+.rep-sec p strong { color: var(--text); }
+.rep-sec p:last-child { margin-bottom: 0; }
+.gap-item { display: flex; gap: 10px; padding: 10px 0; border-top: 1px solid var(--border); }
+.gap-item:first-of-type { border-top: none; }
+.gap-ico { font-size: 14px; width: 20px; text-align: center; flex-shrink: 0; margin-top: 1px; }
+.gap-body { font-size: 13px; color: var(--text-dim); }
+.gap-body strong { color: var(--text); display: block; margin-bottom: 2px; }
+.rep-week { font-family: var(--mono); font-size: 12.5px; color: var(--text-dim); }
+.rep-week-nav { display: flex; gap: 8px; align-items: center; margin-left: auto; }
+.rep-empty { border: 1px dashed var(--border); border-radius: var(--radius); padding: 40px 20px; text-align: center; color: var(--text-dim); }
+.rep-empty p { margin-bottom: 14px; }
+.spinner {
+  width: 14px; height: 14px; border-radius: 50%; display: inline-block;
+  border: 2px solid var(--text-faint); border-top-color: var(--accent);
+  animation: spin .7s linear infinite; vertical-align: -2px; margin-right: 6px;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* ---------- plan timeline ---------- */
+.plan-wrap { border: 1px solid var(--border); border-radius: var(--radius); background: var(--bg-raise); padding: 18px 20px 22px; overflow-x: auto; }
+.plan-weeks { display: flex; margin-left: 200px; border-bottom: 1px solid var(--border); padding-bottom: 6px; min-width: 480px; }
+.plan-weeks span { flex: 1; font-family: var(--mono); font-size: 11px; color: var(--text-faint); }
+.plan-body { position: relative; min-width: 680px; }
+.plan-row { display: flex; align-items: center; height: 56px; border-bottom: 1px solid var(--border); cursor: pointer; }
+.plan-row:last-child { border-bottom: none; }
+.plan-row:hover { background: var(--bg-hover); }
+.plan-label { width: 200px; flex-shrink: 0; padding-right: 14px; }
+.plan-label .pl-name { font-size: 13px; font-weight: 600; display: flex; align-items: center; gap: 7px; }
+.plan-label .pl-meta { font-family: var(--mono); font-size: 10.5px; color: var(--text-faint); margin-top: 2px; padding-left: 15px; }
+.plan-label .pl-meta.late { color: var(--blocked); }
+.plan-track { flex: 1; position: relative; height: 100%; }
+.plan-bar {
+  position: absolute; top: 50%; transform: translateY(-50%); height: 18px;
+  border-radius: 9px; background: var(--bg-hover); border: 1px solid var(--border); overflow: hidden;
+}
+.plan-bar > i { display: block; height: 100%; border-radius: 8px 0 0 8px; opacity: .85; }
+.plan-bar.pb-done { opacity: .5; }
+.plan-bar .pb-pct {
+  position: absolute; right: 7px; top: 50%; transform: translateY(-50%);
+  font-family: var(--mono); font-size: 9.5px; color: var(--text);
+}
+.plan-today { position: absolute; top: 0; bottom: 0; width: 2px; background: var(--accent); z-index: 2; }
+.plan-today::after {
+  content: "今日"; position: absolute; top: -2px; left: 5px;
+  font-size: 9.5px; font-family: var(--mono); color: var(--accent); white-space: nowrap;
+}
+.plan-legend { display: flex; gap: 18px; flex-wrap: wrap; margin-top: 12px; font-size: 11.5px; color: var(--text-dim); align-items: center; }
+.plan-legend i { display: inline-block; width: 14px; height: 10px; border-radius: 3px; vertical-align: -1px; margin-right: 4px; }
+.plan-legend .pl-today { width: 2px; height: 12px; background: var(--accent); border-radius: 0; }
+.plan-empty { color: var(--text-dim); font-size: 13px; padding: 20px 0; }
+.plan-invalid-note { color: var(--working); font-size: 12.5px; margin-bottom: 10px; }
+
+/* ---------- milestone re-link menu ---------- */
+.ms-menu {
+  position: fixed; z-index: 60; min-width: 220px;
+  background: var(--bg-raise); border: 1px solid var(--border); border-radius: var(--radius);
+  box-shadow: 0 12px 32px rgba(0,0,0,.45); padding: 6px; font-size: 13px;
+}
+.ms-menu .mm-label { font-size: 11px; color: var(--text-faint); padding: 4px 10px 6px; }
+.ms-menu button {
+  display: flex; align-items: center; gap: 8px; width: 100%;
+  font: inherit; text-align: left; background: none; border: none; cursor: pointer;
+  color: var(--text); padding: 7px 10px; border-radius: 6px;
+}
+.ms-menu button:hover { background: var(--bg-hover); }
+.ms-menu button:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+.ms-menu .mm-check { margin-left: auto; color: var(--accent); font-size: 12px; }
+.ms-menu .mm-unlink { color: var(--text-dim); border-top: 1px solid var(--border); border-radius: 0 0 6px 6px; margin-top: 4px; padding-top: 9px; }
+.ms-menu .mm-unlink:hover { color: var(--blocked); }
+
+/* ---------- delete button ---------- */
+.del-btn { font-size: 14px; line-height: 1; padding: 5px 8px; }
+.del-btn.confirm { background: var(--blocked); border-color: var(--blocked); color: #fff; font-size: 12px; }
+/* 完了の二段階確認。取り消せない操作を待っている状態なので、削除と同じ色で
+   「まだ実行されていない」ことを見せる。丸い ✔ は文字を入れ替えられないので
+   枠と色だけが変わる(何を待たれているかはトーストが補う)。 */
+.btn.confirm { background: var(--blocked); border-color: var(--blocked); color: #fff; }
+.todo-check.confirm { border-color: var(--blocked); color: var(--blocked); }
+.todo-check.confirm:hover { border-color: var(--blocked); color: var(--blocked); }
+
+/* ---------- toast ---------- */
+.toast-wrap { position: fixed; bottom: 20px; right: 20px; display: flex; flex-direction: column; gap: 8px; z-index: 50; }
+.toast {
+  background: var(--bg-raise); border: 1px solid var(--border); border-left: 3px solid var(--accent);
+  border-radius: var(--radius); padding: 10px 16px; font-size: 12.5px; color: var(--text);
+  box-shadow: 0 8px 24px rgba(0,0,0,.4); max-width: 380px;
+  animation: slidein .25s ease;
+}
+.toast.error { border-left-color: var(--blocked); }
+.toast.warn { border-left-color: var(--working); }
+.toast.flash { animation: flashpulse .4s ease; }
+.toast code { font-family: var(--mono); font-size: 11.5px; color: var(--accent); }
+@keyframes slidein { from { transform: translateX(24px); opacity: 0 } to { transform: none; opacity: 1 } }
+@keyframes flashpulse {
+  0%, 100% { background: var(--bg-raise); }
+  35% { background: var(--bg-hover); }
+}
+
+/* ---------- modal (prompt dialog / snippet manager) ---------- */
+.modal-backdrop {
+  position: fixed; inset: 0; background: rgba(0,0,0,.5); z-index: 80;
+  display: flex; align-items: center; justify-content: center; padding: 20px;
+}
+.modal-backdrop[hidden] { display: none; }
+#snippet-manager-backdrop { z-index: 90; }
+/* Settings can be opened (⌘,) over any other modal, so it must always win
+   the stack — otherwise same-z-index DOM order lets whichever backdrop
+   comes later (snippet/label/workspace manager) paint over it. */
+#settings-backdrop { z-index: 100; }
+.modal {
+  background: var(--bg-raise); border: 1px solid var(--border); border-radius: var(--radius);
+  box-shadow: 0 20px 60px rgba(0,0,0,.5); width: 100%; max-width: 480px;
+  max-height: 85vh; overflow-y: auto; padding: 20px 22px;
+}
+.modal-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 6px; }
+.modal-head h2 { font-size: 16px; font-weight: 700; }
+.modal-head .btn { font-size: 16px; padding: 2px 8px; line-height: 1; }
+.modal-sub { color: var(--text-dim); font-size: 12.5px; margin-bottom: 14px; }
+.modal-footer { display: flex; gap: 8px; margin-top: 14px; }
+
+/* ---------- todo detail dialog ---------- */
+.detail-rows { display: grid; grid-template-columns: auto 1fr; gap: 6px 14px; margin-top: 12px; }
+.detail-rows dt { color: var(--text-dim); font-size: 12.5px; }
+.detail-rows dd { font-size: 13px; }
+.detail-rows dd.mono { font-family: var(--mono); font-size: 12px; word-break: break-all; }
+.detail-desc { font-size: 13px; white-space: pre-wrap; color: var(--text-dim); }
+.detail-empty { font-size: 13px; color: var(--text-faint); }
+/* ---------- settings dialog ---------- */
+.settings-row { display: flex; align-items: center; gap: 10px; padding: 8px 4px; }
+.settings-row + .settings-row { border-top: 1px solid var(--border); }
+.settings-label { flex-shrink: 0; width: 108px; font-size: 12.5px; color: var(--text-dim); }
+.settings-value { flex: 1; min-width: 0; font-family: var(--mono); font-size: 12px; word-break: break-all; }
+.settings-section { border-top: 1px solid var(--border); margin-top: 14px; padding-top: 6px; }
+.settings-edit { display: flex; align-items: center; gap: 8px; }
+.settings-edit input {
+  flex: 1; min-width: 0; font: inherit; background: var(--bg); color: var(--text);
+  border: 1px solid var(--border); border-radius: 6px; padding: 6px 9px;
+}
+.settings-edit input:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
+.settings-edit input:disabled { color: var(--text-faint); }
+.settings-flag { flex-shrink: 0; font-family: var(--sans); font-size: 11px; color: var(--text-faint); }
+/* ---------- linked pull requests ---------- */
+.pr-row { display: flex; align-items: flex-start; gap: 8px; padding: 8px 4px; border-top: 1px solid var(--border); }
+.pr-row:first-of-type { border-top: none; }
+.pr-main { flex: 1; min-width: 0; }
+.pr-head { display: flex; align-items: center; gap: 8px; }
+.pr-head a { font-size: 13px; color: var(--text); text-decoration: none; word-break: break-word; }
+.pr-head a:hover { text-decoration: underline; }
+.pr-sub { font-family: var(--mono); font-size: 11px; color: var(--text-faint); margin-top: 2px; }
+.pr-notice { font-size: 11.5px; color: var(--blocked); margin-top: 4px; }
+.pr-actions { display: flex; gap: 6px; flex-shrink: 0; }
+.pr-add { display: flex; gap: 8px; margin-top: 10px; }
+.pr-add input { flex: 1; min-width: 0; }
+.pr-state {
+  font-size: 10.5px; font-weight: 700; font-family: var(--mono); padding: 1px 7px;
+  border-radius: 8px; letter-spacing: .02em; flex-shrink: 0;
+}
+.pr-state.pr-open { background: rgba(63,185,80,.16); color: #3fb950; border: 1px solid rgba(63,185,80,.4); }
+.pr-state.pr-merged { background: rgba(163,113,247,.16); color: #a371f7; border: 1px solid rgba(163,113,247,.4); }
+.pr-state.pr-closed { background: rgba(248,81,73,.16); color: var(--blocked); border: 1px solid rgba(248,81,73,.4); }
+.pr-state.pr-draft { background: none; color: var(--text-faint); border: 1px dashed var(--border); }
+/* ---------- todo attachments ---------- */
+/* Same padding/radius/type scale as .pr-row above, so the two panels in the
+   detail dialog read as one list. File names are arbitrary user text of any
+   length, hence the wrapping on every element that shows one. */
+.attachment-row { display: flex; align-items: flex-start; gap: 8px; padding: 8px 4px; border-top: 1px solid var(--border); }
+.attachment-main { flex: 1; min-width: 0; }
+.attachment-name { font-size: 13px; color: var(--text); word-break: break-word; overflow-wrap: anywhere; }
+.attachment-size { font-family: var(--mono); font-size: 11px; color: var(--text-faint); margin-top: 2px; }
+.attachment-actions { display: flex; gap: 6px; flex-shrink: 0; }
+.attachment-add { display: flex; align-items: center; gap: 8px; margin-top: 10px; }
+.attachment-add input[type="file"] { flex: 1; min-width: 0; font-size: 12px; color: var(--text-dim); }
+.attachment-add input[type="file"]:disabled { color: var(--text-faint); }
+.attachment-selected { font-family: var(--mono); font-size: 11px; color: var(--text-faint); margin-top: 6px; word-break: break-word; overflow-wrap: anywhere; }
+/* ---------- todo work log (comments) ---------- */
+/* Same row framing as .pr-row / .attachment-row so the three panels read as
+   one list. The body keeps the user's newlines (pre-wrap) and wraps long
+   unbroken runs (URLs, paths) instead of widening the dialog. */
+.comment-row { display: flex; align-items: flex-start; gap: 8px; padding: 8px 4px; border-top: 1px solid var(--border); }
+.comment-row:first-of-type { border-top: none; }
+.comment-main { flex: 1; min-width: 0; }
+.comment-when { font-family: var(--mono); font-size: 11px; color: var(--text-faint); margin-bottom: 3px; }
+.comment-body { font-size: 13px; color: var(--text); white-space: pre-wrap; word-break: break-word; overflow-wrap: anywhere; }
+.comment-actions { display: flex; gap: 6px; flex-shrink: 0; }
+.comment-add { display: flex; align-items: flex-end; gap: 8px; margin-top: 10px; }
+.comment-add textarea {
+  flex: 1; min-width: 0; resize: vertical; min-height: 60px;
+  font: inherit; font-size: 13px; line-height: 1.45; color: var(--text);
+  background: var(--bg); border: 1px solid var(--border); border-radius: 6px; padding: 6px 9px;
+}
+.comment-add textarea:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
+.comment-add textarea:disabled { color: var(--text-faint); }
+.pr-count-badge { font-size: 10.5px; font-family: var(--mono); color: var(--text-faint); border: 1px dashed var(--border); padding: 1px 7px; border-radius: 8px; }
+.review-badge { font-size: 10.5px; font-family: var(--mono); color: var(--accent); border: 1px solid rgba(63,182,168,.4); padding: 1px 7px; border-radius: 8px; }
+/* The PR list reuses .prompt-panel for its framing, but not its 220px
+   internal scroll: here it is the dialog's main content (and holds the "add"
+   field at the bottom), so it grows and lets .modal do the scrolling. */
+#todo-detail-dialog .prompt-panel { max-height: none; overflow-y: visible; }
+
+.todo-title[role="button"] { cursor: pointer; }
+.todo-title[role="button"]:hover { text-decoration: underline; }
+.todo-title[role="button"]:focus-visible { outline: 2px solid var(--text-faint); outline-offset: 2px; border-radius: 3px; }
+
+#prompt-textarea {
+  min-height: 130px; font-family: var(--mono); font-size: 12.5px; line-height: 1.5;
+}
+.prompt-hint { font-size: 11px; color: var(--text-faint); margin: 6px 0 12px; }
+.prompt-tools { display: flex; gap: 8px; margin-bottom: 4px; }
+.prompt-panel {
+  border: 1px solid var(--border); border-radius: var(--radius); margin-top: 10px;
+  padding: 8px; max-height: 220px; overflow-y: auto;
+}
+.prompt-panel-head {
+  display: flex; align-items: center; justify-content: space-between;
+  font-size: 11px; font-weight: 600; color: var(--text-faint); text-transform: uppercase;
+  letter-spacing: .04em; padding: 2px 4px 8px;
+}
+.prompt-panel-empty { color: var(--text-faint); font-size: 12.5px; padding: 6px 4px; }
+.prompt-item.mono { font-family: var(--mono); font-size: 11.5px; word-break: break-all; }
+/* The workspace manager's history section is a panel among the modal's own
+   full-width content, so it needs room to breathe below the registered list
+   (the dialogs' panels sit directly under their fields and don't). */
+#workspace-history-list { margin-top: 18px; max-height: 260px; }
+.prompt-preview {
+  font-family: var(--mono); font-size: 12px; line-height: 1.5; color: var(--text-dim);
+  white-space: pre-wrap; word-break: break-word; max-height: 140px; overflow-y: auto;
+  margin: 0; padding: 2px 4px;
+}
+.prompt-item {
+  display: block; width: 100%; text-align: left; font: inherit; cursor: pointer;
+  background: none; border: 1px solid transparent; border-radius: 6px;
+  padding: 7px 8px; color: var(--text); margin-bottom: 2px;
+}
+.prompt-item:hover { background: var(--bg-hover); border-color: var(--border); }
+.prompt-item strong { display: block; font-size: 13px; }
+.prompt-item span { display: block; font-size: 11.5px; color: var(--text-dim); margin-top: 2px; }
+.snippet-row {
+  display: flex; align-items: center; gap: 10px; padding: 8px 4px;
+  border-top: 1px solid var(--border);
+}
+.snippet-row:first-child { border-top: none; }
+.snippet-row-edit { display: block; border-top: 1px solid var(--border); padding: 10px 4px; }
+.snippet-row-main { flex: 1; min-width: 0; }
+.snippet-row-main strong { display: block; font-size: 13px; }
+.snippet-row-main span { display: block; font-size: 11.5px; color: var(--text-dim); margin-top: 2px; }
+.snippet-row-actions { display: flex; gap: 6px; flex-shrink: 0; }
+.label-row {
+  display: flex; align-items: center; gap: 10px; padding: 8px 4px;
+  border-top: 1px solid var(--border);
+}
+.label-row:first-child { border-top: none; }
+.label-row-edit { display: block; border-top: 1px solid var(--border); padding: 10px 4px; }
+.label-row-main { flex: 1; min-width: 0; display: flex; align-items: center; gap: 8px; }
+.label-row-main .ms-dot { width: 10px; height: 10px; border-radius: 3px; flex-shrink: 0; }
+.label-row-main strong { font-size: 13px; }
+.label-row-actions { display: flex; gap: 6px; flex-shrink: 0; }
+
+/* ---------- responsive ---------- */
+@media (max-width: 768px) {
+  .shell { flex-direction: column; }
+  .sidebar { width: 100%; flex-direction: row; align-items: center; padding: 8px 12px; gap: 4px; overflow-x: auto; }
+  .logo { padding: 0 8px 0 0; }
+  nav { flex-direction: row; }
+  .nav-btn { padding: 6px 10px; white-space: nowrap; }
+  .side-sec, .herdr-status, .pomo { display: none; }
+  .page { padding: 18px 14px 48px; }
+  .todo { grid-template-columns: 26px 1fr; }
+  .todo-actions { grid-column: 2; justify-content: flex-end; }
+  /* The collapse toggle is desktop-only — mobile already collapses
+     side-sec/herdr-status above and lays the nav out horizontally, so
+     there's nothing left to save space on. Force the collapsed rail
+     styling back off in case the state was persisted from a desktop
+     session before the window narrowed. */
+  .sidebar-toggle { display: none; }
+  .sidebar-collapsed .sidebar { width: 100%; align-items: center; }
+  .sidebar-collapsed .logo-name, .sidebar-collapsed .nav-label, .sidebar-collapsed .nav-count { display: inline; }
+  .sidebar-collapsed .nav-btn { justify-content: flex-start; width: auto; }
+}
+</style>
+</head>
+<body>
+<div class="shell">
+  <aside class="sidebar">
+    <button class="sidebar-toggle" id="sidebar-toggle" type="button" aria-expanded="true">«</button>
+    <div class="logo"><div class="logo-dot"></div><div class="logo-name">dot<span>-</span>connect</div></div>
+    <nav aria-label="メイン">
+      <button class="nav-btn" data-page="todos" aria-current="page" title="TODO"><span class="n-ico">☑</span><span class="nav-label">TODO</span><span class="nav-count" id="count-todos">–</span></button>
+      <div class="pomo" id="pomodoro" data-status="idle" aria-label="ポモドーロタイマー" role="group"></div>
+      <button class="nav-btn" data-page="milestones" title="マイルストーン"><span class="n-ico">◆</span><span class="nav-label">マイルストーン</span><span class="nav-count" id="count-ms">–</span></button>
+      <button class="nav-btn" data-page="plan" title="計画"><span class="n-ico">▦</span><span class="nav-label">計画</span></button>
+      <button class="nav-btn" data-page="report" title="週次レポート"><span class="n-ico">▤</span><span class="nav-label">週次レポート</span></button>
+    </nav>
+    <div class="side-sec">
+      <div class="side-label">アクティブなマイルストーン</div>
+      <div id="side-ms-list"></div>
+    </div>
+    <div class="herdr-status" id="herdr-status">
+      <div class="hs-row"><div class="hs-pulse" id="hs-pulse"></div><span class="hs-detail"><strong>herdr</strong>&nbsp;<span id="hs-conn">確認中…</span></span></div>
+      <div class="hs-row hs-detail"><span id="hs-count">0</span>&nbsp;件を dot-connect が管理中</div>
+    </div>
+  </aside>
+
+  <main>
+    <!-- ============ TODO ============ -->
+    <section class="page active" id="page-todos" aria-label="TODO一覧">
+      <div class="page-head">
+        <h1>TODO</h1>
+        <button class="btn btn-ghost" id="manage-workspaces-toggle">作業ディレクトリを管理</button>
+        <button class="btn btn-accent" id="new-todo-toggle">＋ 新規TODO</button>
+      </div>
+      <p class="page-sub">TODOを herdr の Claude Code セッションに投入して並列実行。完了は手動で確定します。</p>
+      <div class="inline-form stacked" id="new-todo-form" hidden></div>
+      <div class="filters" role="group" aria-label="フィルタ">
+        <button class="chip" data-filter="recent" aria-pressed="true">最近の更新</button>
+        <button class="chip" data-filter="all" aria-pressed="false">すべて</button>
+        <button class="chip" data-filter="running" aria-pressed="false">実行中</button>
+        <button class="chip" data-filter="pr-review" aria-pressed="false">レビュー待ち</button>
+        <button class="chip" data-filter="review" aria-pressed="false">確認待ち</button>
+        <button class="chip" data-filter="open" aria-pressed="false">未着手</button>
+        <button class="chip" data-filter="overdue" aria-pressed="false">期日超過</button>
+        <button class="chip" data-filter="done" aria-pressed="false">完了</button>
+      </div>
+      <div id="todo-list"></div>
+    </section>
+
+    <!-- ============ MILESTONES ============ -->
+    <section class="page" id="page-milestones" aria-label="マイルストーン">
+      <div class="page-head">
+        <h1>マイルストーン</h1>
+        <button class="btn btn-ghost" id="manage-labels-toggle">ラベルを管理</button>
+        <button class="btn btn-accent" id="new-ms-toggle">＋ 新規マイルストーン</button>
+      </div>
+      <p class="page-sub">トップダウン: カードから直接TODOを追加。ボトムアップ: TODO側からチップで紐付け。</p>
+      <div class="inline-form" id="new-ms-form" hidden></div>
+      <div class="ms-grid" id="ms-grid"></div>
+    </section>
+
+    <!-- ============ PLAN (timeline) ============ -->
+    <section class="page" id="page-plan" aria-label="計画">
+      <div class="page-head">
+        <h1>計画</h1>
+        <span class="rep-week" id="plan-range"></span>
+      </div>
+      <p class="page-sub">マイルストーンの期間と進捗をタイムラインで俯瞰。バーの塗りが紐付きTODOの完了率です。</p>
+      <div id="plan-invalid-note"></div>
+      <div class="plan-wrap">
+        <div class="plan-weeks" id="plan-weeks"></div>
+        <div class="plan-body" id="plan-body"></div>
+      </div>
+      <div class="plan-legend" id="plan-legend"></div>
+    </section>
+
+    <!-- ============ REPORT ============ -->
+    <section class="page" id="page-report" aria-label="週次レポート">
+      <div class="page-head">
+        <h1>週次レポート</h1>
+      </div>
+      <p class="page-sub">数値はDBから機械集計。差分分析は claude -p が生成します。</p>
+      <div id="report-content"></div>
+    </section>
+  </main>
+</div>
+
+<div class="toast-wrap" id="toasts"></div>
+
+<div class="modal-backdrop" id="prompt-dialog-backdrop" hidden>
+  <div class="modal" id="prompt-dialog" role="dialog" aria-label="投入プロンプトを指定"></div>
+</div>
+
+<div class="modal-backdrop" id="todo-detail-backdrop" hidden>
+  <div class="modal" id="todo-detail-dialog" role="dialog" aria-label="TODO詳細"></div>
+</div>
+
+<div class="modal-backdrop" id="settings-backdrop" hidden>
+  <div class="modal" id="settings-dialog" role="dialog" aria-label="設定"></div>
+</div>
+
+<div class="modal-backdrop" id="snippet-manager-backdrop" hidden>
+  <div class="modal" id="snippet-manager-modal" role="dialog" aria-label="スニペット管理">
+    <div class="modal-head">
+      <h2>スニペット管理</h2>
+      <button type="button" class="btn btn-ghost" data-action="close-snippet-manager" aria-label="閉じる">×</button>
+    </div>
+    <div class="inline-form" style="margin-bottom:14px; align-items:flex-start">
+      <div class="form-field grow">
+        <label for="sn-new-title">タイトル</label>
+        <input id="sn-new-title" type="text" placeholder="例: バグ調査テンプレ">
+      </div>
+      <div class="form-field grow">
+        <label for="sn-new-body">本文</label>
+        <textarea id="sn-new-body" rows="3" placeholder="このスニペットの本文"></textarea>
+      </div>
+      <div class="form-actions">
+        <button type="button" class="btn btn-accent" data-action="create-snippet">作成</button>
+      </div>
+      <div class="form-error" id="sn-new-error" hidden></div>
+    </div>
+    <div id="snippet-manager-list"></div>
+  </div>
+</div>
+
+<div class="modal-backdrop" id="label-manager-backdrop" hidden>
+  <div class="modal" id="label-manager-modal" role="dialog" aria-label="ラベル管理">
+    <div class="modal-head">
+      <h2>ラベル管理</h2>
+      <button type="button" class="btn btn-ghost" data-action="close-label-manager" aria-label="閉じる">×</button>
+    </div>
+    <div class="inline-form" style="margin-bottom:14px; align-items:flex-start">
+      <div class="form-field grow">
+        <label for="lb-new-name">名前</label>
+        <input id="lb-new-name" type="text" placeholder="例: バックエンド">
+      </div>
+      <div class="form-field">
+        <label for="lb-new-color">色</label>
+        <input id="lb-new-color" type="color" value="#6ca4f8">
+      </div>
+      <div class="form-actions">
+        <button type="button" class="btn btn-accent" data-action="create-label">作成</button>
+      </div>
+      <div class="form-error" id="lb-new-error" hidden></div>
+    </div>
+    <div id="label-manager-list"></div>
+  </div>
+</div>
+
+<div class="modal-backdrop" id="workspace-manager-backdrop" hidden>
+  <div class="modal" id="workspace-manager-modal" role="dialog" aria-label="作業ディレクトリ管理">
+    <div class="modal-head">
+      <h2>作業ディレクトリ管理</h2>
+      <button type="button" class="btn btn-ghost" data-action="close-workspace-manager" aria-label="閉じる">×</button>
+    </div>
+    <div class="inline-form" style="margin-bottom:14px; align-items:flex-start">
+      <div class="form-field grow">
+        <label for="ws-new-name">名前</label>
+        <input id="ws-new-name" type="text" placeholder="例: my-app">
+      </div>
+      <div class="form-field grow">
+        <label for="ws-new-path">パス(絶対パス)</label>
+        <input id="ws-new-path" type="text" placeholder="例: /Users/you/projects/my-app">
+      </div>
+      <div class="form-actions">
+        <button type="button" class="btn btn-accent" data-action="create-workspace">登録</button>
+      </div>
+      <div class="form-error" id="ws-new-error" hidden></div>
+    </div>
+    <div id="workspace-manager-list"></div>
+    <!-- Second section of the same modal: automatically recorded paths, as
+         opposed to the hand-registered list above. Rendered by
+         workspacePathHistory.js; clicks are routed by workspaceManager.js. -->
+    <div class="prompt-panel" id="workspace-history-list"></div>
+  </div>
+</div>
+
+<!-- Populated from state.workspaces (see todos.js's renderWorkspaceDatalist)
+     and referenced by every workspacePath <input list="workspace-datalist">
+     across the TODO forms and the dispatch dialog. Kept as one page-level
+     element rather than one per form: a <datalist>'s own re-render never
+     touches the <input> it's attached to, so refreshing it can never wipe
+     out whatever the user has already typed into an open form. -->
+<datalist id="workspace-datalist"></datalist>
+
+<script type="module" src="/js/main.js"></script>
+</body>
+</html>

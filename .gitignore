@@ -1,0 +1,28 @@
+# dependencies
+node_modules/
+desktop/node_modules/
+
+# build outputs
+desktop/src-tauri/target/
+desktop/src-tauri/binaries/
+desktop/src-tauri/gen/
+coverage/
+
+# local data
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+
+# local tooling / agent working directories
+.gstack/
+.superpowers/
+.worktrees/
+docs/superpowers/
+.claude/settings.local.json
+
+# OS / editor / env
+.DS_Store
+.env
+.env.*
+*.log
