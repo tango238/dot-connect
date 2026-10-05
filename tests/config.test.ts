@@ -53,6 +53,7 @@ describe('loadConfig', () => {
       port: 8080,
       dbPath: '/tmp/x.db',
       herdrBin: '/opt/herdr',
+      herdrCheckIntervalMs: 86400_000,
       claudeBin: '/opt/claude',
       codexBin: '/opt/codex',
       ghBin: '/opt/gh',
@@ -187,4 +188,12 @@ describe('isLoopbackHost', () => {
     expect(isLoopbackHost('192.168.1.10')).toBe(false)
     expect(isLoopbackHost('example.com')).toBe(false)
   })
+})
+
+test('Herdr check interval defaults to 24h and validates overrides', () => {
+  expect(loadConfig({}).herdrCheckIntervalMs).toBe(86400_000)
+  expect(loadConfig({ DOT_CONNECT_HERDR_CHECK_INTERVAL_MS: '60000' }).herdrCheckIntervalMs).toBe(60000)
+  for (const value of ['0', '-1', 'abc', '1.5', '2592000001']) {
+    expect(() => loadConfig({ DOT_CONNECT_HERDR_CHECK_INTERVAL_MS: value })).toThrow(/CHECK_INTERVAL/)
+  }
 })

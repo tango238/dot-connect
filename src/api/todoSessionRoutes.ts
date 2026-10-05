@@ -35,13 +35,10 @@ function dispatchTodoHandler(deps: AppDependencies) {
         model,
         allowedModels: deps.allowedModels,
         settleMs: deps.dispatchSettleMs,
-        keystrokeDelayBaseMs: deps.dispatchKeystrokeDelayBaseMs,
-        keystrokeDelayPerCharMs: deps.dispatchKeystrokeDelayPerCharMs,
-        keystrokeDelayMaxMs: deps.dispatchKeystrokeDelayMaxMs,
         deliveryConfirmTimeoutMs: deps.dispatchDeliveryConfirmTimeoutMs,
       })
       // result includes promptDelivered: false when claude started fine but
-      // we could not confirm it received the task prompt after a retry — the
+      // we could not confirm it received the task prompt — the
       // frontend should surface that as a "please check the session" warning
       // rather than treating this as a dispatch failure (it's HTTP 200).
       return ok(c, result)

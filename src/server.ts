@@ -1,3 +1,4 @@
+import { createHerdrCompatibilityMonitor } from './herdr/compatibility'
 import { Hono } from 'hono'
 import { serveStatic } from 'hono/bun'
 import { config, isLoopbackHost } from './config'
@@ -17,10 +18,16 @@ export function buildDependencies(): AppDependencies {
   // promise rather than re-detecting.
   let cachedCapabilities: ReturnType<typeof detectCapabilities> | null = null
 
+  const herdrCompatibility = createHerdrCompatibilityMonitor(spawnExec, config.herdrBin, {
+    intervalMs: config.herdrCheckIntervalMs,
+  })
   return {
+    herdrCompatibility,
     db: createDatabase(config.dbPath),
     dbPath: config.dbPath,
-    herdr: createHerdrClient(spawnExec, config.herdrBin),
+    herdr: createHerdrClient(spawnExec, config.herdrBin, {
+      assertDispatchCompatible: () => herdrCompatibility.assertDispatchCompatible(),
+    }),
     claudeRunner: createClaudeRunner(spawnExec, config.claudeBin),
     exec: spawnExec,
     platform: process.platform,
@@ -85,6 +92,7 @@ export function buildServeOptions(
 
 if (import.meta.main) {
   const deps = buildDependencies()
+  deps.herdrCompatibility?.start()
   const app = buildApp(deps)
 
   const server = Bun.serve(buildServeOptions(app, config.port, config.host))

@@ -1,3 +1,4 @@
+import type { HerdrCompatibilityMonitor } from '../herdr/compatibility'
 import type { Database } from 'bun:sqlite'
 import type { ExecFn } from '../herdr/exec'
 import type { HerdrClient } from '../herdr/herdrClient'
@@ -11,6 +12,7 @@ export interface AppDependencies {
   // when no upload_dir setting has been explicitly configured.
   readonly dbPath: string
   readonly herdr: HerdrClient
+  readonly herdrCompatibility?: HerdrCompatibilityMonitor
   readonly claudeRunner: ClaudeRunner
   readonly exec: ExecFn
   // process.platform, injected so capabilities detection (and anything else
@@ -52,8 +54,5 @@ export interface AppDependencies {
   readonly dispatchPollIntervalMs?: number
   readonly dispatchSleep?: (ms: number) => Promise<void>
   readonly dispatchSettleMs?: number
-  readonly dispatchKeystrokeDelayBaseMs?: number
-  readonly dispatchKeystrokeDelayPerCharMs?: number
-  readonly dispatchKeystrokeDelayMaxMs?: number
   readonly dispatchDeliveryConfirmTimeoutMs?: number
 }

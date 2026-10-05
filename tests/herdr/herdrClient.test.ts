@@ -154,20 +154,20 @@ describe('herdrClient.runInPane', () => {
   })
 })
 
-describe('herdrClient.sendText', () => {
-  test('sends literal text (no Enter) via herdr agent send', async () => {
+describe('herdrClient.submitPrompt', () => {
+  test('submits a prompt via herdr agent prompt', async () => {
     const exec = fakeExec((cmd) => {
-      expect(cmd).toEqual(['herdr', 'agent', 'send', 'w9:p1', 'hello there'])
+      expect(cmd).toEqual(['herdr', 'agent', 'prompt', 'w9:p1', 'hello there'])
       return voidSuccess()
     })
     const client = createHerdrClient(exec, 'herdr')
-    await expect(client.sendText('w9:p1', 'hello there')).resolves.toBeUndefined()
+    await expect(client.submitPrompt('w9:p1', 'hello there')).resolves.toBeUndefined()
   })
 
   test('propagates herdr errors', async () => {
     const exec: ExecFn = async () => ({ stdout: '', stderr: 'pane not found', exitCode: 1 })
     const client = createHerdrClient(exec, 'herdr')
-    await expect(client.sendText('bad', 'x')).rejects.toThrow(/pane not found/)
+    await expect(client.submitPrompt('bad', 'x')).rejects.toThrow(/pane not found/)
   })
 })
 

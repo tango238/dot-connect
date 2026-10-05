@@ -2,7 +2,7 @@ import { Hono } from 'hono'
 import { syncStatuses } from '../herdr/statusSync'
 import { logger } from '../logger'
 import type { AppDependencies } from './dependencies'
-import { handle, ok } from './response'
+import { handle, ok, fail } from './response'
 
 function logHerdrUnreachable(context: string, err: unknown): void {
   logger.warn(`herdr ${context} failed`, {
@@ -12,6 +12,15 @@ function logHerdrUnreachable(context: string, err: unknown): void {
 
 export function createHerdrRoutes(deps: AppDependencies): Hono {
   const app = new Hono()
+
+  app.get('/compatibility', (c) => handle(c, async () => {
+    if (!deps.herdrCompatibility) return fail(c, 500, 'Herdr確認機能が初期化されていません')
+    return ok(c, await deps.herdrCompatibility.check())
+  }))
+  app.post('/compatibility/check', (c) => handle(c, async () => {
+    if (!deps.herdrCompatibility) return fail(c, 500, 'Herdr確認機能が初期化されていません')
+    return ok(c, await deps.herdrCompatibility.check(true))
+  }))
 
   app.post('/sync', (c) => {
     return handle(c, async () => {

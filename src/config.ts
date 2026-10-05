@@ -1,4 +1,5 @@
 import { isAbsolute, resolve } from 'node:path'
+import { DEFAULT_HERDR_CHECK_INTERVAL_MS } from './herdr/compatibility'
 import { logger } from './logger'
 import { parseAllowedModels } from './services/modelValidation'
 
@@ -6,6 +7,7 @@ export interface Config {
   readonly port: number
   readonly dbPath: string
   readonly herdrBin: string
+  readonly herdrCheckIntervalMs: number
   readonly claudeBin: string
   // Launched instead of claudeBin when a TODO's model is "codex".
   readonly codexBin: string
@@ -93,6 +95,10 @@ function readOptionalString(raw: string | undefined): string | null {
 }
 
 function readConfig(env: NodeJS.ProcessEnv): Config {
+  const herdrCheckIntervalMs = Number(env.DOT_CONNECT_HERDR_CHECK_INTERVAL_MS ?? DEFAULT_HERDR_CHECK_INTERVAL_MS)
+  if (!Number.isSafeInteger(herdrCheckIntervalMs) || herdrCheckIntervalMs < 60_000 || herdrCheckIntervalMs > 30 * 86400_000) {
+    throw new Error('DOT_CONNECT_HERDR_CHECK_INTERVAL_MS must be between 60000 and 2592000000')
+  }
   const port = Number(env.PORT ?? '5757')
   if (!Number.isInteger(port) || port <= 0) {
     throw new Error(`Invalid PORT: ${env.PORT}`)
@@ -112,6 +118,7 @@ function readConfig(env: NodeJS.ProcessEnv): Config {
     port,
     dbPath: resolveDbPath(env.DB_PATH),
     herdrBin: env.HERDR_BIN ?? 'herdr',
+    herdrCheckIntervalMs,
     claudeBin: env.CLAUDE_BIN ?? 'claude',
     codexBin: env.CODEX_BIN ?? 'codex',
     ghBin: env.GH_BIN ?? 'gh',

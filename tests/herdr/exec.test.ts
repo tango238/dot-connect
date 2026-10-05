@@ -25,3 +25,14 @@ describe('spawnExec', () => {
     await expect(spawnExec(['sleep', '2'], { timeoutMs: 100 })).rejects.toThrow(ExecTimeoutError)
   })
 })
+
+
+test('spawnExec preserves target and multiline prompt as single argv values without a shell', async () => {
+  const text = `--確認 "引用" '引用'
+  空白 - --wait $(echo NEVER) \`echo NEVER\``
+  const result = await spawnExec([
+    process.execPath, '-e', 'console.log(JSON.stringify(process.argv.slice(1)))', '--', 'w8:p1', text,
+  ])
+  expect(result.exitCode).toBe(0)
+  expect(JSON.parse(result.stdout)).toEqual(['w8:p1', text])
+})

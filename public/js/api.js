@@ -113,6 +113,8 @@ export const api = {
   generateReport: (weekStart) =>
     request('POST', '/api/reports/weekly/generate', weekStart ? { weekStart } : {}),
 
+  herdrCompatibility: () => request('GET', '/api/herdr/compatibility'),
+  checkHerdrCompatibility: () => request('POST', '/api/herdr/compatibility/check'),
   herdrSync: () => request('POST', '/api/herdr/sync'),
   herdrStatus: () => request('GET', '/api/herdr/status'),
 

@@ -389,3 +389,44 @@ herdr/claude の呼び出しはすべて `ExecFn` (または `HerdrClient`/`Clau
 ## ライセンス
 
 [MIT License](LICENSE)
+
+### Herdr の対応版・定期チェック
+
+設定画面（サイドバーの **Herdr 設定**、デスクトップでは `⌘,`）に、インストール済み版、対応状況、操作ごとのCLI形式検出結果、最終確認・前回成功・次回確認日時、検出した版の変更を表示します。**今すぐ再確認**でキャッシュを更新できます。公開最新版は照会せず「未確認」と表示します。インストール済み版と対応版、公開最新版を混同しません。Herdrの自動更新・外部への情報送信は行いません。
+
+| Herdr 版 | dot-connect の扱い | 送信動作・差分 |
+| --- | --- | --- |
+| 0.9.3 | 公式ソース＋実CLIの引数・隔離モック通信を検証（実エージェント送信は未検証） | `agent prompt <target> <text>`（区切りの `--` は非対応）。入力と送信をHerdrに任せ、追加のEnterや自動再入力をしない。`agent send`は存在しない |
+| その他（旧版・プレリリースを含む） | 未検証。新規依頼送信を停止 | 検出できた操作のみ表示。`agent send`等への推測によるフォールバックなし |
+
+0.9.3で確認する操作は `api snapshot`、`workspace create --cwd --label --no-focus`、`pane run`、`agent prompt`、`pane read --source visible`、`pane send-keys`、`tab focus`、`workspace close` です。操作ごとの `--help` のUsageと必要なオプションを検査します。版番号が一致してもCLI形式と実引数パーサーを確認できなければ送信を停止します。ヘルプのUsage一致だけでは送信を許可しません。
+
+- 起動時と通常24時間ごとに `--version` / `--help` と、対応版に限り副作用のない引数パーサー検査を実行。各プロセスのタイムアウトは3秒。チェックの同時実行はまとめます。
+- `DOT_CONNECT_HERDR_CHECK_INTERVAL_MS` で周期を変更できます（既定 `86400000`、最小 `60000`、最大 `2592000000`）。変更はサーバー再起動後に反映されます。
+- 結果はプロセス内キャッシュです。再起動時は取り直します。休止から復帰した後は最大1分以内、設定画面の表示・再フォーカス時は期限を過ぎていれば再確認します。確認失敗・未インストール・不明時は成功結果を送信許可に流用せず、1分後から再確認可能です。
+- 依頼送信時はワークスペース作成前と本文送信直前にも強制再確認するため、定期チェックの直後にHerdrが更新されても古いキャッシュで送信しません。
+- 本文はシェルを介さず配列の1引数として渡します。改行・空白・日本語・引用符を保持し、先頭ハイフンも本文の位置に直接渡します。区切り用 `--` は挿入しません。
+- 送信後の確認失敗やクライアントのタイムアウトでは、依頼を自動再送せずセッションを残して確認を促します。まずセッションを開いて受信済みか確認してください。同じTODOの同一サーバー内の同時依頼も拒否します。
+
+対応版を追加するときは `src/herdr/compatibility.ts` の `HERDR_VERIFIED_VERSIONS` と操作定義を更新します。公式CLIの各 `--help` で入力形式・送信有無を確認し、意味が変わる場合は `herdrClient.ts` のアダプターを明示的に追加してください。版番号だけで新しい送信経路を許可しないでください。ヘルプ上の互換性は引数パーサーや実際のTUIの挙動を保証しません。送信用と同じargvビルダーで、日本語改行・引用符・先頭ハイフン・`--help`・`--` 本文の後ろに意図的な無効オプションを付け、本文でなく末尾オプションが拒否されることを検査します。`HERDR_SOCKET_PATH` は専用一時ディレクトリ内の存在しないソケットに固定し、予期しない解析結果でも実サーバーへは接続しません。対応表には検証範囲を記録します。
+
+検証は `bun test`、`bun run typecheck`、`./desktop/build-sidecars.sh`。互換性・変更検知・キャッシュ・エラー・未知版の送信停止は `tests/herdr/compatibility.test.ts`、本文のargvと重複送信は `tests/herdr/exec.test.ts` および `tests/services/dispatchService.herdrIntegration.test.ts` で、実エージェントを呼ばず検証します。型検査にはPATH上のTypeScriptコンパイラが必要です。
+
+既知の制限: キャッシュ・同時依頼ロックはプロセス単位です。同じDBを複数サーバーから操作する構成の排他や、チェック完了とコマンド起動の極短い間に実行ファイルが置換される競合は保証しません。既存セッションの状態同期・表示操作は引き続き従来のエラー処理を使います。Herdrの定期確認はブラウザを閉じてもサーバー起動中に動作しますが、アプリ終了中は実行されません。
+
+
+#### Herdr 0.9.3 の引数規則の実検証（2026-10-05）
+
+公式タグv0.9.3の固定コミット `7b116c05bfda646af39d2524c54e70c751f57ee8` の
+[`agent_prompt`](https://github.com/herdrdev/herdr/blob/7b116c05bfda646af39d2524c54e70c751f57ee8/src/cli/agent.rs#L777) は、最初の2引数をtarget/textにし、3引数目以降だけをオプションとして解析します。`--`を前置するとtargetが`--`、textが本来のtargetになり、本来の本文が `unknown option` で拒否されます。以前のヘルプのみの検証はこの差を検出できませんでした。
+
+[`session::configure_from_args`](https://github.com/herdrdev/herdr/blob/7b116c05bfda646af39d2524c54e70c751f57ee8/src/session.rs#L29) と
+[`extract_remote_args`](https://github.com/herdrdev/herdr/blob/7b116c05bfda646af39d2524c54e70c751f57ee8/src/remote/args.rs#L35) が先に全体を処理するため、本文そのものが `--session`、`--remote`、`--remote-keybindings`、`--handoff` と一致する場合、および先頭が `--session=`、`--remote=`、`--remote-keybindings=` の場合は送信前に明示エラーにします。NULも拒否します。黙って本文を書き換えず、ユーザーが通常の文章を先頭に加える方式です。通常のハイフンや本文中のオプション風文字列は保持します。
+
+実インストール済みCLIの回帰テスト（任意、Unixソケットを利用できる環境で実行）:
+
+```bash
+HERDR_CLI_TEST_BIN=/Users/go/.local/bin/herdr bun test tests/herdr/herdrCliParser.test.ts
+```
+
+テストは `/tmp` の隔離モックソケットにだけ接続し、`ping`→`agent.prompt` の合成target/textが完全一致することを検証します。日本語複数行・空白・引用符・先頭ハイフン・`--wait`・`--help`・`--`を含み、不正な区切り形式のexit 2も再現します。実エージェントや実LP依頼を使いません。通常の `bun test` ではこのテストだけスキップされます。定期確認UIの「CLI引数検証済み」は実パーサー検査まで通過した意味で、実エージェントの受信保証ではありません。

@@ -6,6 +6,7 @@ export interface ExecResult {
 
 export interface ExecOptions {
   readonly timeoutMs?: number
+  readonly env?: Record<string, string>
 }
 
 export type ExecFn = (cmd: string[], options?: ExecOptions) => Promise<ExecResult>
@@ -21,7 +22,7 @@ export class ExecTimeoutError extends Error {
 // inject a fake instead of spawning real processes. herdr/claude invocations
 // must always go through this seam — never call Bun.spawn directly elsewhere.
 export const spawnExec: ExecFn = async (cmd, options) => {
-  const proc = Bun.spawn(cmd, { stdout: 'pipe', stderr: 'pipe' })
+  const proc = Bun.spawn(cmd, { stdout: 'pipe', stderr: 'pipe', env: { ...process.env, ...options?.env } })
   const timeoutMs = options?.timeoutMs
 
   const resultPromise = (async (): Promise<ExecResult> => {

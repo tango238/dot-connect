@@ -10,7 +10,7 @@ import type { LlmAnalysis } from '../../src/types'
 export interface FakeHerdrClient extends HerdrClient {
   readonly createWorkspaceCalls: unknown[]
   readonly runInPaneCalls: { paneId: string; command: string }[]
-  readonly sendTextCalls: { paneId: string; text: string }[]
+  readonly submitPromptCalls: { paneId: string; text: string }[]
   readonly sendKeysCalls: { paneId: string; keys: string[] }[]
   readonly readPaneCalls: string[]
   readonly focusTabCalls: string[]
@@ -19,7 +19,7 @@ export interface FakeHerdrClient extends HerdrClient {
   nextSnapshot: HerdrSnapshot
   snapshotError: Error | null
   // When true (default), snapshot() reports the dispatched pane as
-  // 'working' once sendText has been called for it — simulating claude
+  // 'working' once submitPrompt has been called for it — simulating claude
   // picking up the delivered prompt — so a normal test dispatch confirms
   // delivery on the first attempt without exercising the retry path. Set
   // to false to test the "delivery never confirmed" path instead.
@@ -54,7 +54,7 @@ function withWorkingStatus(snapshot: HerdrSnapshot, paneId: string): HerdrSnapsh
 export function createFakeHerdrClient(): FakeHerdrClient {
   const createWorkspaceCalls: unknown[] = []
   const runInPaneCalls: { paneId: string; command: string }[] = []
-  const sendTextCalls: { paneId: string; text: string }[] = []
+  const submitPromptCalls: { paneId: string; text: string }[] = []
   const sendKeysCalls: { paneId: string; keys: string[] }[] = []
   const readPaneCalls: string[] = []
   const focusTabCalls: string[] = []
@@ -64,7 +64,7 @@ export function createFakeHerdrClient(): FakeHerdrClient {
   const client: FakeHerdrClient = {
     createWorkspaceCalls,
     runInPaneCalls,
-    sendTextCalls,
+    submitPromptCalls,
     sendKeysCalls,
     readPaneCalls,
     focusTabCalls,
@@ -77,7 +77,7 @@ export function createFakeHerdrClient(): FakeHerdrClient {
       if (client.snapshotError) {
         throw client.snapshotError
       }
-      const sentToPane = sendTextCalls.some((c) => c.paneId === client.nextWorkspace.paneId)
+      const sentToPane = submitPromptCalls.some((c) => c.paneId === client.nextWorkspace.paneId)
       if (client.autoConfirmDelivery && sentToPane) {
         return withWorkingStatus(client.nextSnapshot, client.nextWorkspace.paneId)
       }
@@ -90,8 +90,8 @@ export function createFakeHerdrClient(): FakeHerdrClient {
     async runInPane(paneId, command) {
       runInPaneCalls.push({ paneId, command })
     },
-    async sendText(paneId, text) {
-      sendTextCalls.push({ paneId, text })
+    async submitPrompt(paneId, text) {
+      submitPromptCalls.push({ paneId, text })
     },
     async sendKeys(paneId, ...keys) {
       sendKeysCalls.push({ paneId, keys })
@@ -102,7 +102,7 @@ export function createFakeHerdrClient(): FakeHerdrClient {
       // "still sitting there, unsubmitted" — matching this fake's existing
       // default of never confirming delivery on its own (autoConfirmDelivery
       // governs when snapshot() ever reports 'working').
-      const lastSent = [...sendTextCalls].reverse().find((c) => c.paneId === paneId)
+      const lastSent = [...submitPromptCalls].reverse().find((c) => c.paneId === paneId)
       return lastSent?.text ?? ''
     },
     async focusTab(tabId) {
@@ -194,9 +194,6 @@ export function createRawTestApp(overrides: Partial<AppDependencies> = {}): RawT
     dispatchPollIntervalMs: 1,
     dispatchSleep: async () => undefined,
     dispatchSettleMs: 0,
-    dispatchKeystrokeDelayBaseMs: 0,
-    dispatchKeystrokeDelayPerCharMs: 0,
-    dispatchKeystrokeDelayMaxMs: 0,
     dispatchDeliveryConfirmTimeoutMs: 100,
     ...overrides,
   }

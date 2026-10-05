@@ -11,6 +11,7 @@
 // hook is the only channel). Also reachable directly from the browser
 // console via openSettingsDialog().
 
+import { herdrCompatibilityHtml } from './lib/herdrCompatibility.js'
 import { api } from './api.js'
 import { buildSettingsRows } from './lib/settingsInfo.js'
 import { getState, subscribe } from './state.js'
@@ -23,6 +24,29 @@ let settings = null
 // leave the typed path in place instead of making the user retype it.
 let draft = null
 let saving = false
+let herdrInfo = null
+let checkingHerdr = false
+let herdrError = ''
+
+function renderHerdr() {
+  const host = $('#settings-herdr')
+  if (host) host.innerHTML = herdrCompatibilityHtml(herdrInfo, checkingHerdr, herdrError)
+}
+
+async function loadHerdr(force = false) {
+  if (checkingHerdr) return
+  checkingHerdr = true
+  herdrError = ''
+  renderHerdr()
+  try {
+    herdrInfo = await (force ? api.checkHerdrCompatibility() : api.herdrCompatibility())
+  } catch (err) {
+    herdrError = err.message
+  } finally {
+    checkingHerdr = false
+    if (open) renderHerdr()
+  }
+}
 
 function rows() {
   return buildSettingsRows(getState().capabilities, window.location.origin)
@@ -86,10 +110,12 @@ function renderDialog() {
     <div id="settings-info-rows">${rows().map(rowHtml).join('')}</div>
     <p class="field-hint">書き込み系のAPI(POST / PATCH / DELETE)には <code>Origin: ${escapeHtml(window.location.origin)}</code> ヘッダーが必要です。加えて、body を伴う POST / PATCH には <code>Content-Type: application/json</code> も必要です(無いと415)。</p>
     <div id="settings-upload-dir-row" class="settings-section"></div>
+    <section id="settings-herdr" class="settings-section" aria-live="polite"></section>
     <div class="modal-footer">
       <button type="button" class="btn btn-ghost" data-action="close-settings">閉じる</button>
     </div>`
   renderUploadRow()
+  renderHerdr()
 }
 
 async function loadSettings() {
@@ -112,6 +138,7 @@ export function openSettingsDialog() {
   draft = null
   renderDialog()
   void loadSettings()
+  void loadHerdr()
 }
 
 /**
@@ -176,6 +203,8 @@ function handleDialogClick(ev) {
   const action = btn.dataset.action
   if (action === 'close-settings') {
     closeDialog()
+  } else if (action === 'check-herdr') {
+    void loadHerdr(true)
   } else if (action === 'copy-setting') {
     void copyRow(Number(btn.dataset.index))
   } else if (action === 'save-upload-dir') {
@@ -184,6 +213,12 @@ function handleDialogClick(ev) {
 }
 
 export function initSettingsDialog() {
+  $('#herdr-compatibility-settings')?.addEventListener('click', openSettingsDialog)
+  window.addEventListener('focus', () => { if (open) void loadHerdr() })
+  document.addEventListener('visibilitychange', () => {
+    if (open && !document.hidden) void loadHerdr()
+  })
+  setInterval(() => { if (open && !document.hidden) void loadHerdr() }, 60_000)
   $('#settings-backdrop').addEventListener('click', (ev) => {
     if (ev.target.id === 'settings-backdrop') closeDialog()
   })

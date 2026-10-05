@@ -18,7 +18,7 @@ function fakeClient(snapshot: HerdrSnapshot): HerdrClient {
       throw new Error('not used in this test')
     },
     runInPane: async () => undefined,
-    sendText: async () => undefined,
+    submitPrompt: async () => undefined,
     sendKeys: async () => undefined,
     readPane: async () => '',
     focusTab: async () => undefined,

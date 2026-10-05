@@ -1,3 +1,4 @@
+import { buildPromptArgs } from './promptArgs'
 import type { ExecFn } from './exec'
 
 export type HerdrAgentStatus = 'idle' | 'working' | 'blocked' | 'done' | 'unknown'
@@ -25,19 +26,16 @@ export interface CreatedWorkspace {
 }
 
 export interface HerdrClient {
+  assertDispatchCompatible?(): Promise<void>
   snapshot(): Promise<HerdrSnapshot>
   createWorkspace(params: CreateWorkspaceParams): Promise<CreatedWorkspace>
-  // Starts a command line (text + Enter in one shot) — used to launch
-  // claude. NOT used for delivering the task prompt to an already-running
-  // TUI: see sendText/sendKeys for why that needs to be two steps.
+  // Starts the configured CLI in a fresh pane.
   runInPane(paneId: string, command: string): Promise<void>
-  // Types literal text into the pane with no trailing Enter.
-  sendText(paneId: string, text: string): Promise<void>
+  // Submits text, including Enter, once. Callers must not send Enter again.
+  submitPrompt(paneId: string, text: string): Promise<void>
   // Sends one or more key presses (e.g. 'Enter') with no text.
   sendKeys(paneId: string, ...keys: string[]): Promise<void>
-  // Reads the pane's currently-visible text content — used to tell whether
-  // a just-sent prompt is still sitting unsubmitted in the input box (see
-  // dispatchService.ts's isPromptStillInInputBox).
+  // Reads the pane's currently-visible text content.
   readPane(paneId: string): Promise<string>
   focusTab(tabId: string): Promise<void>
   closeWorkspace(workspaceId: string): Promise<void>
@@ -45,6 +43,7 @@ export interface HerdrClient {
 
 export interface HerdrClientOptions {
   readonly timeoutMs?: number
+  readonly assertDispatchCompatible?: () => Promise<void>
 }
 
 const DEFAULT_HERDR_TIMEOUT_MS = 10_000
@@ -89,6 +88,11 @@ interface HerdrEnvelope {
 
 async function runHerdrJson(exec: ExecFn, args: string[], timeoutMs: number): Promise<unknown> {
   const { stdout, stderr, exitCode } = await exec(args, { timeoutMs })
+  if (exitCode !== 0) {
+    throw new HerdrCommandError(
+      `herdr command '${args.join(' ')}' failed (exit ${exitCode}): ${stderr || stdout}`
+    )
+  }
 
   let envelope: HerdrEnvelope
   try {
@@ -110,15 +114,13 @@ async function runHerdrJson(exec: ExecFn, args: string[], timeoutMs: number): Pr
 
 async function runHerdrVoid(exec: ExecFn, args: string[], timeoutMs: number): Promise<void> {
   const { stdout, stderr, exitCode } = await exec(args, { timeoutMs })
-
-  if (stdout.trim().length === 0) {
-    if (exitCode === 0) {
-      return
-    }
+  if (exitCode !== 0) {
     throw new HerdrCommandError(
-      `herdr command '${args.join(' ')}' failed (exit ${exitCode}): ${stderr}`
+      `herdr command '${args.join(' ')}' failed (exit ${exitCode}): ${stderr || stdout}`
     )
   }
+
+  if (stdout.trim().length === 0) return
 
   // Some herdr versions/commands may still emit a JSON envelope for what is
   // normally a void command; if present, honor an {error} the same way the
@@ -222,6 +224,7 @@ export function createHerdrClient(
   const timeoutMs = options.timeoutMs ?? DEFAULT_HERDR_TIMEOUT_MS
 
   return {
+    assertDispatchCompatible: options.assertDispatchCompatible,
     async snapshot() {
       const result = await runHerdrJson(exec, [herdrBin, 'api', 'snapshot'], timeoutMs)
       return parseSnapshot(result)
@@ -240,8 +243,9 @@ export function createHerdrClient(
       await runHerdrVoid(exec, [herdrBin, 'pane', 'run', paneId, command], timeoutMs)
     },
 
-    async sendText(paneId, text) {
-      await runHerdrVoid(exec, [herdrBin, 'agent', 'send', paneId, text], timeoutMs)
+    async submitPrompt(paneId, text) {
+      await options.assertDispatchCompatible?.()
+      await runHerdrVoid(exec, buildPromptArgs(herdrBin, paneId, text), timeoutMs)
     },
 
     async sendKeys(paneId, ...keys) {

@@ -896,7 +896,7 @@ describe('POST /api/todos/:id/dispatch', () => {
     })
     expect(res.status).toBe(200)
 
-    const sentText = (deps.herdr as FakeHerdrClient).sendTextCalls[0]?.text ?? ''
+    const sentText = (deps.herdr as FakeHerdrClient).submitPromptCalls[0]?.text ?? ''
     expect(sentText).toContain('Custom instructions here')
   })
 
@@ -915,7 +915,7 @@ describe('POST /api/todos/:id/dispatch', () => {
     })
     expect(res.status).toBe(200)
 
-    const sentText = (deps.herdr as FakeHerdrClient).sendTextCalls[0]?.text ?? ''
+    const sentText = (deps.herdr as FakeHerdrClient).submitPromptCalls[0]?.text ?? ''
     expect(sentText).toContain('Title: Fix login. Details: SSO redirect loops forever.')
 
     const historyRes = await app.request('/api/prompts/history')
