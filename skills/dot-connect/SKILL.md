@@ -1,6 +1,6 @@
 ---
 name: dot-connect
-description: 依頼文・要件・メモを読んで作業を複数のTODOに分解し、各TODOのタイトル・詳細・LLMモデル・作業ディレクトリを提案して、ユーザーの承認後にローカルの dot-connect(MCP または HTTP API)へ登録する。「dot-connect に登録して」「TODOに分解して」「タスクに切って dot-connect へ」「この依頼を TODO 化して」などと言われたとき、または依頼文を貼り付けて dot-connect への登録を求められたときに使う。登録結果と、ユーザーが直したモデル・作業ディレクトリは記録ファイルに残し、次回の提案に使う。
+description: 依頼文・要件・メモを読んで作業を複数のTODOに分解し、各TODOのタイトル・詳細・LLMモデル・作業ディレクトリと、まとめ先のマイルストーン(新規または既存)を提案して、ユーザーの承認後にローカルの dot-connect(MCP または HTTP API)へ登録する。「dot-connect に登録して」「TODOに分解して」「タスクに切って dot-connect へ」「この依頼を TODO 化して」などと言われたとき、または依頼文を貼り付けて dot-connect への登録を求められたときに使う。登録結果と、ユーザーが直したモデル・作業ディレクトリは記録ファイルに残し、次回の提案に使う。
 ---
 
 # dot-connect: 依頼文を TODO に分解して登録する
@@ -13,7 +13,7 @@ description: 依頼文・要件・メモを読んで作業を複数のTODOに分
 次の順で使えるものを選ぶ。以降の手順はどちらでも同じ。
 
 1. **MCP**: `mcp__dot-connect__create_todo` などのツールが使えるならそれを使う
-   (`list_workspaces` / `create_todo` / `list_milestones`)。
+   (`list_workspaces` / `list_milestones` / `create_milestone` / `update_milestone` / `create_todo` / `update_todo` / `list_labels`)。
 2. **HTTP API**: 使えなければ `curl` で `http://localhost:5757` を叩く
    (環境変数 `DOT_CONNECT_URL` があればそれを使う)。
    - 応答は `{ "success": true, "data": ... }`。`success: false` なら `error` をユーザーに伝える。
@@ -38,7 +38,8 @@ description: 依頼文・要件・メモを読んで作業を複数のTODOに分
 - **登録済みの作業ディレクトリ**: `GET /api/workspaces`(MCP なら `list_workspaces`)
 - **最近投入に使ったディレクトリ**: `GET /api/workspaces/history`
 - **使えるモデル**: `GET /api/models`(例: `opus` `sonnet` `haiku` `fable` `codex`)。この一覧に無い値は登録できない。
-- 依頼文がマイルストーンに触れていれば `GET /api/milestones`(MCP なら `list_milestones`)。
+- **マイルストーン**: `GET /api/milestones`(MCP なら `list_milestones`)。`status` が完了済みのものはまとめ先の候補にしない。
+- **ラベル**: 新規マイルストーンを提案するときだけ `GET /api/labels`(MCP なら `list_labels`)。
 
 記録ファイルはユーザーが Finder から直接書き換えることがある。**記録ファイルの指示は過去の履歴より優先する。**
 
@@ -60,9 +61,30 @@ description: 依頼文・要件・メモを読んで作業を複数のTODOに分
 | モデル | `models.md` のルール → `history.md` で似た作業に使ったモデル → 作業の重さ、の順で選ぶ。設計判断や大きな変更は上位モデル、定型的・小さな作業は軽いモデル。迷ったら未指定(Claude Code の既定)にする |
 | 作業ディレクトリ | `workspaces.md` → 登録済み作業ディレクトリ → 投入履歴 → `history.md` の順で、依頼文に出てくるリポジトリ名・プロダクト名から選ぶ。絶対パスのみ。**決めきれないときは推測で埋めず「要確認」にする** |
 
+### マイルストーンにまとめるか
+
+分解した結果、**1つの目的のために複数の TODO で対応する**(目安: 関連する TODO が2件以上)なら、
+それらをマイルストーンの子タスクとして登録することを提案する。
+
+- **既存マイルストーンに入れる**: 未完了のマイルストーンのうち、タイトル・説明・ラベルが依頼の目的と合うものがあればそれを第一候補にする。
+  期間(`targetDate`)や説明を広げる必要があれば、その更新内容も提案に含める。
+- **新規マイルストーンを作る**: 合うものが無ければ新規を提案する。決めるもの:
+  - タイトル(目的が一目で分かる名詞句)、説明(ゴールと完了条件)
+  - `startDate`(既定は今日)と `targetDate`(依頼文の期限。無ければ TODO の量から見積もり、見積もりだと明記する)
+  - ラベル(合うものがあれば。無理に付けない)
+- **まとめない**: TODO が1件だけ、または互いに無関係な小さな作業の寄せ集めなら、マイルストーンは提案しない。
+- 依頼文が無関係な目的を複数含むなら、目的ごとに別のマイルストーンに分けてよい。マイルストーンに入れない TODO が混ざってもよい。
+- 迷うときは「まとめる案」を出したうえで、まとめないで登録する選択肢もあると添える。
+
 提示の形(番号は登録順):
 
 ```
+## マイルストーン: <タイトル>(新規 / 既存 #12)
+- 期間: 2026-10-09 〜 2026-10-31(終了日は見積もり)
+- ラベル: なし
+- 説明: <ゴールと完了条件>
+- (既存を更新する場合)変更: targetDate 2026-10-20 → 2026-10-31
+
 ### 1. <タイトル>
 - モデル: sonnet(理由: 定型的なUI追加)
 - 作業ディレクトリ: /Users/.../dot-connect(理由: workspaces.md の「dot-connect の機能追加」)
@@ -70,23 +92,37 @@ description: 依頼文・要件・メモを読んで作業を複数のTODOに分
   <詳細本文>
 ```
 
-最後に「この内容で登録してよいか / 直したい点(追加・削除・統合・モデルやディレクトリの変更)」を尋ねる。
+最後に「この内容で登録してよいか / 直したい点(追加・削除・統合・モデルやディレクトリの変更・マイルストーンの有無や新規/既存の切り替え)」を尋ねる。
 修正を受けたら提案を作り直して再度確認する。**明確な承認が出るまで登録しない。**
 
 ## 4. 登録する
 
-承認された TODO を順に作成する。
+承認された内容を次の順で登録する。
+
+1. **マイルストーン**(提案した場合のみ)
+   - 新規: `create_milestone` / `POST /api/milestones`
+     (`title` `description` `startDate` `targetDate`、必要なら `labelId`)。応答の `id` を控える。
+   - 既存を更新: `update_milestone` / `PATCH /api/milestones/<id>` に変更する項目だけ渡す。
+   - **マイルストーンの作成に失敗したら TODO の登録に進まず**、理由を伝えてどうするか尋ねる
+     (マイルストーン無しで登録する / 直して再試行する)。
+2. **TODO** を順に作成する。マイルストーンに入れるものには `milestoneId` を付ける。
+3. 依頼文が既存の TODO をマイルストーンに入れることを求めていて、それも承認された場合は
+   `update_todo` / `PATCH /api/todos/<id>` に `{"milestoneId": <id>}` を渡す。
 
 - MCP: `create_todo` に `title` `description` `model` `workspacePath`(必要なら `milestoneId`)を渡す。
 - API:
   ```bash
+  curl -s -X POST "$BASE/api/milestones" \
+    -H "Origin: $BASE" -H "Content-Type: application/json" \
+    -d '{"title":"...","description":"...","startDate":"2026-10-09","targetDate":"2026-10-31"}'
+
   curl -s -X POST "$BASE/api/todos" \
     -H "Origin: $BASE" -H "Content-Type: application/json" \
-    -d '{"title":"...","description":"...","model":"sonnet","workspacePath":"/abs/path"}'
+    -d '{"title":"...","description":"...","model":"sonnet","workspacePath":"/abs/path","milestoneId":12}'
   ```
   JSON は手で文字列連結せず、`jq -n --arg title "$T" ...` などで組み立てて改行や引用符を壊さない。
 - 「要確認」のまま承認された作業ディレクトリ・未指定のモデルは、キーごと省く。
-- 1件失敗しても残りは続け、最後に成功(ID付き)と失敗(理由)をまとめて報告する。
+- TODO は1件失敗しても残りは続け、最後にマイルストーン(ID付き)・成功した TODO(ID付き)・失敗(理由)をまとめて報告する。
 
 登録した TODO は dot-connect の画面に自動で反映される。herdr への投入(dispatch)はこのスキルでは行わない。
 
@@ -96,11 +132,14 @@ description: 依頼文・要件・メモを読んで作業を複数のTODOに分
 
 - `history.md` の末尾に、登録した TODO を1件1行で追記する:
   ```
-  - 2026-10-09 #123 <タイトル> | model: sonnet | dir: /abs/path
+  - 2026-10-09 #123 <タイトル> | model: sonnet | dir: /abs/path | ms: #12 <マイルストーン名>
   ```
+  マイルストーンに入れなかった TODO は `| ms:` を省く。
 - ユーザーが提案の **モデルや作業ディレクトリを直した** ときは、次回同じ判断ができるようにルールを追記する:
   - 作業ディレクトリ → `workspaces.md` に「<作業の特徴・キーワード> → <パス>」
   - モデル → `models.md` に「<作業の種類> → <モデル>(理由)」
+  - マイルストーンのまとめ方を直された(まとめる/まとめない、別の既存マイルストーンに入れた)→
+    `workspaces.md` の末尾に「<作業の特徴> → マイルストーン #12 <名前> に入れる」などと追記する
   - 既存のルールと矛盾する場合は、追記せずに既存の行を書き換える。
 - ユーザーが書いた既存の内容は消さない・並べ替えない。
 - 何を記録したかを最後に1〜2行で伝える(設定画面の「Finderで開く」から編集できることも添える)。
