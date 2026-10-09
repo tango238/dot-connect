@@ -27,3 +27,6 @@ docs/superpowers/
 .env
 .env.*
 *.log
+
+# bun build temp files
+.*.bun-build
