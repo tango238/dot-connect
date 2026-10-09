@@ -264,7 +264,7 @@ function renderDialog() {
   backdrop.hidden = false
   $('#todo-detail-dialog').innerHTML = `
     <div class="modal-head">
-      <h2>${escapeHtml(todo.title)}</h2>
+      <h2><span class="todo-id">#${todo.id}</span> ${escapeHtml(todo.title)}</h2>
       <button type="button" class="btn btn-ghost" data-action="close-todo-detail" aria-label="閉じる">×</button>
     </div>
     ${milestoneLine(todo)}

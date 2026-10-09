@@ -260,9 +260,15 @@ export const updateWorkspaceSchema = z.object({
   path: workspacePathAbsolute.optional(),
 })
 
-export const updateSettingsSchema = z.object({
-  uploadDir: z.string().trim().min(1).max(1000),
-})
+export const updateSettingsSchema = z
+  .object({
+    uploadDir: z.string().trim().min(1).max(1000).optional(),
+    // 範囲は idleRecapService.ts の MIN/MAX と同じ(1分〜24時間)
+    idleRecapMinutes: z.number().int().min(1).max(1440).optional(),
+  })
+  .refine((v) => v.uploadDir !== undefined || v.idleRecapMinutes !== undefined, {
+    message: '変更する項目を指定してください',
+  })
 
 export const createPromptSnippetSchema = z.object({
   title: z.string().trim().min(1),

@@ -1,4 +1,5 @@
 import { Hono } from 'hono'
+import { createLiveChanges } from './liveChanges'
 import { apiTokenAuth } from './apiTokenAuth'
 import { createCapabilitiesRoutes } from './capabilitiesRoutes'
 import { csrfProtection } from './csrf'
@@ -25,6 +26,11 @@ export function createApiRoutes(deps: AppDependencies): Hono {
 
   app.use('*', apiTokenAuth(deps.apiToken, deps.isLoopback))
   app.use('*', csrfProtection(deps.port))
+
+  const live = createLiveChanges(deps)
+  app.use('*', live.mutations)
+  // Browser-only: deliberately absent from the API-token allowlist.
+  app.get('/events', live.events)
 
   app.route('/todos', createTodosRoutes(deps))
   app.route('/todos', createTodoSessionRoutes(deps))

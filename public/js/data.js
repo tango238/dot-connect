@@ -109,3 +109,19 @@ export async function refreshStalePullRequests() {
     // 意図的に無視(トーストを出さない)
   }
 }
+
+// A background snapshot is fetched separately from applying it so the caller
+// can recheck whether a draft was opened while these requests were in flight.
+export async function loadLiveSnapshot() {
+  const [todos, milestones, labels, workspaces] = await Promise.all([
+    api.listTodos(), api.listMilestones(), api.listLabels(), api.listWorkspaces(),
+  ])
+  return { todos, milestones, labels, workspaces }
+}
+
+export function applyLiveSnapshot(snapshot) {
+  const state = getState()
+  if (Object.keys(snapshot).some((key) => JSON.stringify(state[key]) !== JSON.stringify(snapshot[key]))) {
+    setState(snapshot)
+  }
+}

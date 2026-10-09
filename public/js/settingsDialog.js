@@ -24,6 +24,9 @@ let settings = null
 // leave the typed path in place instead of making the user retype it.
 let draft = null
 let saving = false
+// Same split for the idle-recap minutes box: what's typed vs. what's saved.
+let idleDraft = null
+let savingIdle = false
 let herdrInfo = null
 let checkingHerdr = false
 let herdrError = ''
@@ -94,6 +97,30 @@ function renderUploadRow() {
     <p class="field-hint">添付ファイルの保存先です。絶対パスで、既に存在する書き込み可能なフォルダを指定してください。変更しても既にアップロード済みのファイルは移動しません(元のフォルダに残ります)。</p>`
 }
 
+function idleMinutesValue() {
+  return idleDraft ?? (settings?.idleRecapMinutes != null ? String(settings.idleRecapMinutes) : '')
+}
+
+// herdr 上の Claude Code セッションが GET /api/settings で読む値。dot-connect
+// 自身はこの値で何もしない(セッション側のループが判断に使う)。
+function renderIdleRow() {
+  const host = $('#settings-idle-recap-row')
+  if (!host) return
+  const loading = settings === null
+  host.innerHTML = `
+    <div class="settings-row">
+      <div class="settings-label">アイドル監視(分)</div>
+      <div class="settings-value settings-edit">
+        <input type="number" id="settings-idle-recap" class="settings-number" value="${escapeHtml(idleMinutesValue())}"
+          min="1" max="1440" step="1" inputmode="numeric"
+          placeholder="${loading ? '…' : '180'}" aria-label="アイドル監視(分)"
+          ${loading || savingIdle ? 'disabled' : ''}>
+      </div>
+      <button type="button" class="btn" data-action="save-idle-recap" ${loading || savingIdle ? 'disabled' : ''}>保存</button>
+    </div>
+    <p class="field-hint">herdr のセッションが、ユーザーからの応答がこの時間途絶えたときに recap を作業ログへ自動記録します。1〜1440分。セッション側は次回のチェック時にこの値を読み直します。</p>`
+}
+
 function renderDialog() {
   const backdrop = $('#settings-backdrop')
   if (!open) {
@@ -110,11 +137,13 @@ function renderDialog() {
     <div id="settings-info-rows">${rows().map(rowHtml).join('')}</div>
     <p class="field-hint">書き込み系のAPI(POST / PATCH / DELETE)には <code>Origin: ${escapeHtml(window.location.origin)}</code> ヘッダーが必要です。加えて、body を伴う POST / PATCH には <code>Content-Type: application/json</code> も必要です(無いと415)。</p>
     <div id="settings-upload-dir-row" class="settings-section"></div>
+    <div id="settings-idle-recap-row" class="settings-section"></div>
     <section id="settings-herdr" class="settings-section" aria-live="polite"></section>
     <div class="modal-footer">
       <button type="button" class="btn btn-ghost" data-action="close-settings">閉じる</button>
     </div>`
   renderUploadRow()
+  renderIdleRow()
   renderHerdr()
 }
 
@@ -124,10 +153,12 @@ async function loadSettings() {
     // Only adopt the server's value if the user hasn't started typing while
     // the request was in flight.
     if (draft === null) draft = settings.uploadDir
+    if (idleDraft === null) idleDraft = String(settings.idleRecapMinutes)
   } catch (err) {
     toastError(err.message)
   }
   renderUploadRow()
+  renderIdleRow()
 }
 
 export function openSettingsDialog() {
@@ -136,6 +167,7 @@ export function openSettingsDialog() {
   // A draft left over from a rejected save belongs to the previous visit;
   // reopening should show what the server actually has.
   draft = null
+  idleDraft = null
   renderDialog()
   void loadSettings()
   void loadHerdr()
@@ -164,6 +196,29 @@ export async function applyUploadDir(path) {
   } finally {
     saving = false
     renderUploadRow()
+  }
+}
+
+async function saveIdleRecap() {
+  const input = $('#settings-idle-recap')
+  if (!input || savingIdle) return
+  const minutes = Number(input.value.trim())
+  if (!Number.isInteger(minutes) || minutes < 1 || minutes > 1440) {
+    toastError('アイドル監視は1〜1440の整数(分)で指定してください')
+    return
+  }
+  savingIdle = true
+  idleDraft = String(minutes)
+  renderIdleRow()
+  try {
+    settings = await api.updateSettings({ idleRecapMinutes: minutes })
+    idleDraft = String(settings.idleRecapMinutes)
+    toast(`アイドル監視を${minutes}分に変更しました`)
+  } catch (err) {
+    toastError(err.message)
+  } finally {
+    savingIdle = false
+    renderIdleRow()
   }
 }
 
@@ -209,6 +264,8 @@ function handleDialogClick(ev) {
     void copyRow(Number(btn.dataset.index))
   } else if (action === 'save-upload-dir') {
     saveUploadDir()
+  } else if (action === 'save-idle-recap') {
+    void saveIdleRecap()
   }
 }
 
@@ -228,9 +285,11 @@ export function initSettingsDialog() {
   // never silently discard a half-typed path.
   $('#settings-dialog').addEventListener('input', (ev) => {
     if (ev.target.id === 'settings-upload-dir') draft = ev.target.value
+    if (ev.target.id === 'settings-idle-recap') idleDraft = ev.target.value
   })
   $('#settings-dialog').addEventListener('keydown', (ev) => {
     if (ev.key === 'Enter' && ev.target.id === 'settings-upload-dir') saveUploadDir()
+    if (ev.key === 'Enter' && ev.target.id === 'settings-idle-recap') void saveIdleRecap()
   })
   document.addEventListener('keydown', (ev) => {
     if (ev.key === 'Escape' && open) closeDialog()

@@ -299,6 +299,7 @@ h1 { font-size: 20px; font-weight: 700; }
 .todo.is-done .todo-check { background: var(--done-unread); border-color: var(--done-unread); color: #06231f; }
 .todo-main { min-width: 0; }
 .todo-title { font-weight: 600; font-size: 14px; }
+.todo-id { color: var(--text-dim); font-weight: 500; font-variant-numeric: tabular-nums; }
 .todo.is-done .todo-title { text-decoration: line-through; text-decoration-color: var(--text-faint); }
 .todo-meta { display: flex; align-items: center; gap: 8px; margin-top: 5px; flex-wrap: wrap; }
 .ms-chip {
@@ -515,6 +516,7 @@ h1 { font-size: 20px; font-weight: 700; }
 }
 .settings-edit input:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
 .settings-edit input:disabled { color: var(--text-faint); }
+.settings-edit input.settings-number { flex: 0 0 auto; width: 90px; }
 .settings-flag { flex-shrink: 0; font-family: var(--sans); font-size: 11px; color: var(--text-faint); }
 /* ---------- linked pull requests ---------- */
 .pr-row { display: flex; align-items: flex-start; gap: 8px; padding: 8px 4px; border-top: 1px solid var(--border); }

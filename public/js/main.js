@@ -1,7 +1,8 @@
 // Entry point: wires navigation, loads initial data, and drives the 10s
 // herdr status poll. Each page module owns its own rendering + actions.
 
-import { loadInitial, refreshHerdrStatus, refreshStalePullRequests, syncHerdrThenRefreshTodos } from './data.js'
+import { applyLiveSnapshot, loadLiveSnapshot, loadInitial, refreshHerdrStatus, refreshStalePullRequests, syncHerdrThenRefreshTodos } from './data.js'
+import { createLiveRefresh } from './lib/liveRefresh.js'
 import { initLabelManager } from './labelManager.js'
 import { isSidebarCollapsed, persistSidebarCollapsed } from './lib/sidebarState.js'
 import { hasOpenMilestoneForm, initMilestones, renderMilestones, renderSideMilestones } from './milestones.js'
@@ -150,6 +151,25 @@ async function bootstrap() {
   } catch (err) {
     toastError(err.message)
   }
+
+  let disconnectLive = () => {}
+  function connectLive() {
+    disconnectLive()
+    const live = createLiveRefresh({
+      load: loadLiveSnapshot,
+      apply: applyLiveSnapshot,
+      // Dialog drafts and staged attachments are also left untouched. Pending
+      // changes apply once the dialog/form closes, without more network polls.
+      isEditing: () => hasOpenTodoForm() || hasOpenMilestoneForm() ||
+        !!document.querySelector('.modal-backdrop:not([hidden])'),
+    })
+    const events = new EventSource('/api/events')
+    events.addEventListener('change', () => live.invalidate())
+    disconnectLive = () => { events.close(); live.stop() }
+  }
+  connectLive()
+  window.addEventListener('pagehide', () => disconnectLive())
+  window.addEventListener('pageshow', (event) => { if (event.persisted) connectLive() })
 
   void refreshStalePullRequests()
   setInterval(pollTick, POLL_MS)

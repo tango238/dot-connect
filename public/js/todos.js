@@ -207,7 +207,7 @@ function todoRow(todo) {
   return `<div class="todo ${done ? 'is-done' : ''}" data-todo-id="${todo.id}">
     <button class="todo-check" aria-label="完了切り替え" data-action="toggle-complete" data-id="${todo.id}">✔</button>
     <div class="todo-main">
-      <div class="todo-title" role="button" tabindex="0" data-action="open-todo-detail" data-id="${todo.id}" title="クリックで詳細を表示">${escapeHtml(todo.title)}</div>
+      <div class="todo-title" role="button" tabindex="0" data-action="open-todo-detail" data-id="${todo.id}" title="クリックで詳細を表示"><span class="todo-id">#${todo.id}</span> ${escapeHtml(todo.title)}</div>
       ${descLine}
       <div class="todo-meta">${dueBadgeHtml(todo)}${prioBadge(todo)}${reviewBadge(todo)}${modelBadgeHtml(todo)}${prCountBadge(todo)}${msChip(todo)}${sessBadge(todo)}<span class="todo-date">${escapeHtml(todo.workspacePath ?? '')}</span></div>
     </div>
