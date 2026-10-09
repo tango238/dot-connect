@@ -197,6 +197,7 @@ export function createRawTestApp(overrides: Partial<AppDependencies> = {}): RawT
     dispatchSleep: async () => undefined,
     dispatchSettleMs: 0,
     dispatchDeliveryConfirmTimeoutMs: 100,
+    grillResultTimeoutMs: 0,
     ...overrides,
   }
 

@@ -187,6 +187,10 @@ const ADDITIVE_COLUMNS: readonly { table: string; column: string; definition: st
   // 足せなくなる。バックフィルするより NULL のままにして読み出し側で
   // created_at に落とす方が、「一度も触っていない」を正直に残せる。
   { table: 'todos', column: 'updated_at', definition: 'TEXT' },
+  // Grill(TODOの内容を対話で詰める)の作業用一時ディレクトリ。Grill 中だけ
+  // 値が入り、Grilled で確定・取り消し・完了・削除のいずれかで NULL に戻る
+  // (grillService.ts 参照)。
+  { table: 'todos', column: 'grill_dir', definition: 'TEXT' },
 ]
 
 // bun:sqlite's { create: true } creates the DB *file* but not missing parent

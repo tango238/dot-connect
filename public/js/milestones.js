@@ -10,6 +10,7 @@ import { activeMilestonesWithProgress } from './lib/milestoneProgress.js'
 import { openLabelManager } from './labelManager.js'
 import { openLinkMenu } from './linkMenu.js'
 import { getState, setState } from './state.js'
+import { openTodoDetail } from './todoDetailDialog.js'
 import { $, escapeHtml, formatMonthDay, toast, toastError, todayIso, twoStepConfirm } from './utils.js'
 
 // Which milestone card currently has its inline "add todo" form open, and
@@ -45,7 +46,7 @@ function msTodoLines(milestoneId) {
   return linkedTodosFor(milestoneId)
     .map(
       (t) =>
-        `<div class="ms-todo-line ${t.status === 'done' ? 'd' : ''}"><span class="st">${statusIcon(t)}</span>${escapeHtml(t.title)}</div>`
+        `<div class="ms-todo-line ${t.status === 'done' ? 'd' : ''}"><span class="st">${statusIcon(t)}</span><span class="ms-todo-title" role="button" tabindex="0" data-action="open-todo-detail" data-id="${t.id}" title="クリックで詳細を表示"><span class="todo-id">#${t.id}</span> ${escapeHtml(t.title)}</span></div>`
     )
     .join('')
 }
@@ -415,6 +416,8 @@ function handleGridClick(ev) {
     reopenMilestone(id)
   } else if (action === 'delete-ms') {
     twoStepConfirm(btn, () => deleteMilestone(id))
+  } else if (action === 'open-todo-detail') {
+    openTodoDetail(id)
   } else if (action === 'goto-milestones') {
     document.querySelector('[data-page="milestones"]').click()
   }
@@ -471,6 +474,15 @@ function restoreOpenFormValues(captured) {
 
 export function initMilestones() {
   $('#ms-grid').addEventListener('click', handleGridClick)
+  // The todo titles are spans with role="button", so Enter/Space are wired
+  // up by hand, as on the TODO page.
+  $('#ms-grid').addEventListener('keydown', (ev) => {
+    if (ev.key !== 'Enter' && ev.key !== ' ') return
+    const title = ev.target.closest('[data-action="open-todo-detail"]')
+    if (!title) return
+    ev.preventDefault()
+    openTodoDetail(Number(title.dataset.id))
+  })
   $('#side-ms-list').addEventListener('click', handleGridClick)
 
   $('#new-ms-toggle').addEventListener('click', () => {

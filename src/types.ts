@@ -138,6 +138,9 @@ export interface Todo {
   // metadata refresh — that rewrites the PR row without the todo itself
   // moving.
   readonly updatedAt: string | null
+  // Grill 中だけ入る、dot-connect が持つ一時ディレクトリ(<db dir>/grill/
+  // todo-<id>)。Grill していなければ null。grillService.ts 参照。
+  readonly grillDir: string | null
   // Always present (empty when none are linked). Carried on the todo itself
   // rather than fetched separately because the detail dialog holds only a
   // todo id and re-reads everything it shows from the polled todo list —

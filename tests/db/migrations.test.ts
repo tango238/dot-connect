@@ -322,6 +322,23 @@ describe('legacy schema rebuild', () => {
     db.close()
   })
 
+  test('rebuild does not drop the grill_dir column added by ensureColumn just before it', () => {
+    // Same trap again: grill_dir is added by ensureColumn() before the FK
+    // rebuild, so the rebuild's column lists must carry it through.
+    createLegacySchema()
+    const seed = new Database(dbPath)
+    seed.run(`ALTER TABLE todos ADD COLUMN grill_dir TEXT`)
+    seed.run(`INSERT INTO todos (title, grill_dir) VALUES ('t1', '/data/grill/todo-1')`)
+    seed.close()
+
+    const db = createDatabase(dbPath)
+    const todoId = (db.query('SELECT id FROM todos').get() as { id: number }).id
+    expect(todoRepo.getById(db, todoId)?.grillDir).toBe('/data/grill/todo-1')
+    todoRepo.setGrillDir(db, todoId, null)
+    expect(todoRepo.getById(db, todoId)?.grillDir).toBeNull()
+    db.close()
+  })
+
   test('adds the labels table and milestones.label_id, preserving existing milestones with label_id NULL', () => {
     createLegacySchema()
     const seed = new Database(dbPath)

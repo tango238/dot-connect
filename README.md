@@ -29,6 +29,8 @@ herdr上のClaude Code / Codex CLIセッションとして投入(dispatch)し、
 - **herdrへの投入**: プロンプト(履歴・スニペット・`{{title}}` /
   `{{description}}` プレースホルダ)を付けてTODOをエージェントセッションとして
   起動。セッション状態の同期、完了時のワークスペースclose
+- **Grill**: TODOの内容をherdr上のClaude Codeとの対話で詰め、結果でタイトル・
+  説明を書き換える(下記)
 - **添付ファイル**: TODOへのファイル添付と、投入時に含める添付の選択
 - **作業ログ**: TODOごとのコメント(作業ログ)
 - **PullRequest紐付け**: GitHub PRのURLをTODOに紐付け、`gh` でタイトル・状態を
@@ -36,6 +38,44 @@ herdr上のClaude Code / Codex CLIセッションとして投入(dispatch)し、
 - **週次レポート**: `claude -p` による週次レポートの生成
 - **ポモドーロタイマー**: TODOに紐付けた集中タイマー(終了時チャイム、音量調整)
 - **外部連携**: 許可リスト方式のAPIトークン認証、stdio MCPサーバー
+
+### Grill(TODOを対話で詰める)
+
+「Grill me」ボタンを押すと、dot-connect が一時ディレクトリ
+`<DBファイルのあるディレクトリ>/grill/todo-<id>` を作り、`TODO.md`(現在の
+タイトルと説明)とインタビュー手順書 `GRILL.md` を置いて、そこを作業
+ディレクトリにした herdr セッションで Claude Code を起動する。Claude は
+`GRILL.md` に従って、TODO の前提が書かれないまま残らないところまでユーザーに
+質問を重ね、合意できたら同じディレクトリに `GRILLED.md` を書く。Grill の
+セッションは TODO の herdr セッションとして扱われる(「セッションを開く」・
+WIP制限・削除時のガードがそのまま効く)が、投入履歴には数えない。Grill 中の
+TODO は投入できない。
+
+インタビューが終わったら「Grilled」を押す。`GRILLED.md` を読んで TODO の
+タイトルと説明を置き換え、セッションを閉じて一時ディレクトリを消す。
+`GRILLED.md` がまだ無ければ、セッションに今すぐ書くよう促して最大90秒待つ。
+それでも無ければ 409 で、もう一度押してもらう。セッションが結果を書かずに
+終わっていれば Grill を取り消す。TODO を完了・削除したときも一時ディレクトリは
+消える。
+
+`GRILLED.md` の形式(1行目が見出し、空行のあとが説明。上限は通常のTODOと同じ
+タイトル200文字・説明4000文字):
+
+```markdown
+# <新しいタイトル(1文で、それだけで指示として通じるもの)>
+
+## 背景
+## やること
+## 決めたこと
+## 完了条件
+## 注意点
+```
+
+Grill の Claude Code は `claude --permission-mode acceptEdits` で起動する
+(TODO にモデルが設定されていれば `--model` も付く。`codex` の TODO でも Grill は
+Claude Code の既定モデルで行う)。編集の自動承認が効くのは dot-connect が
+持つこの一時ディレクトリの中だけで、`GRILLED.md` を確認なしに書かせるための
+もの。
 
 ## スタック
 
@@ -113,6 +153,8 @@ workspaces の CRUDエンドポイント、TODOのPR紐付け
 - `POST /api/todos/:id/dispatch`(任意のディレクトリで任意のプロンプトの
   Claude Codeセッションを起動する。実質的にRCE)
 - `POST /api/todos/:id/open-session`(osascriptを実行する)
+- `POST /api/todos/:id/grill` / `POST /api/todos/:id/grilled`(Claude Code
+  セッションの起動・終了)
 - `POST /api/reports/weekly/generate`(`claude -p` を実行してコストが発生する)
 - `POST /api/herdr/sync`
 

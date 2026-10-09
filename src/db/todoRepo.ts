@@ -34,6 +34,7 @@ interface TodoRow {
   model: string | null
   created_at: string
   updated_at: string | null
+  grill_dir: string | null
 }
 
 const SELECT_WITH_MILESTONE = `
@@ -43,7 +44,7 @@ const SELECT_WITH_MILESTONE = `
     t.status, t.priority, t.workspace_path,
     t.herdr_workspace_id, t.herdr_tab_id, t.herdr_pane_id,
     t.session_state, t.dispatched_at, t.completed_at, t.completed_milestone_id, t.model, t.due_date,
-    t.created_at, t.updated_at
+    t.created_at, t.updated_at, t.grill_dir
   FROM todos t
   LEFT JOIN milestones m ON m.id = t.milestone_id
 `
@@ -90,6 +91,7 @@ function mapRow(
     model: row.model,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
+    grillDir: row.grill_dir,
     pullRequests,
     attachments,
     comments,
@@ -318,4 +320,10 @@ export function clearDispatch(db: Database, id: number): void {
      WHERE id = ?`,
     [id]
   )
+}
+
+// Grill の作業ディレクトリを記録する(null で外す)。ディレクトリそのものの
+// 作成・削除は grillService.ts の責務で、ここは列を書くだけ。
+export function setGrillDir(db: Database, id: number, dir: string | null): void {
+  db.run(`UPDATE todos SET grill_dir = ?, updated_at = datetime('now') WHERE id = ?`, [dir, id])
 }

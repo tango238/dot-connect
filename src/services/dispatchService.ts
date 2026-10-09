@@ -22,14 +22,24 @@ const DEFAULT_POLL_INTERVAL_MS = 500
 const DEFAULT_SETTLE_MS = 1500
 const DEFAULT_DELIVERY_CONFIRM_TIMEOUT_MS = 10_000
 
-export interface DispatchOptions {
+// エージェントを起動してプロンプトを渡すまでの待ち時間まわり。dispatch と
+// Grill(grillService.ts)の両方が同じ手順でセッションを立ち上げるので共有する。
+export interface AgentLaunchOptions {
+  readonly agentReadyTimeoutMs?: number
+  readonly pollIntervalMs?: number
+  readonly sleep?: (ms: number) => Promise<void>
+  /** Extra wait after agent_status becomes 'idle', before typing anything. */
+  readonly settleMs?: number
+  /** How long to poll for delivery confirmation (see isDeliveryConfirmed)
+   * after sending, before giving up on confirming delivery. */
+  readonly deliveryConfirmTimeoutMs?: number
+}
+
+export interface DispatchOptions extends AgentLaunchOptions {
   readonly claudeBin: string
   /** Launched instead of claudeBin when the resolved model is "codex".
    * Defaults to 'codex'. */
   readonly codexBin?: string
-  readonly agentReadyTimeoutMs?: number
-  readonly pollIntervalMs?: number
-  readonly sleep?: (ms: number) => Promise<void>
   /** Custom task text to send instead of the todo's title. Recorded to
    * prompt_history once the dispatch fully succeeds (never on rollback). */
   readonly promptBody?: string
@@ -48,11 +58,6 @@ export interface DispatchOptions {
    * DOT_CONNECT_ALLOWED_MODELS-extended) list instead of relying on that
    * default. */
   readonly allowedModels?: readonly string[]
-  /** Extra wait after agent_status becomes 'idle', before typing anything. */
-  readonly settleMs?: number
-  /** How long to poll for delivery confirmation (see isDeliveryConfirmed)
-   * after sending, before giving up on confirming delivery. */
-  readonly deliveryConfirmTimeoutMs?: number
 }
 
 /** A dispatched Todo, plus whether the task prompt was confirmed delivered
@@ -64,7 +69,7 @@ export interface DispatchResult extends Todo {
   readonly promptDelivered: boolean
 }
 
-function defaultSleep(ms: number): Promise<void> {
+export function defaultSleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms))
 }
 
@@ -120,6 +125,11 @@ function ensureDispatchable(todo: Todo | null, todoId: number): Todo {
   }
   if (todo.sessionState === 'working') {
     throw new ConflictError(`Todo ${todoId} is already dispatched and running`)
+  }
+  // Grill のセッションも todo の herdr セッションとして記録されるが、Grill を
+  // 終えずに投入すると一時ディレクトリと GRILLED.md が宙に浮く。
+  if (todo.grillDir !== null) {
+    throw new ConflictError('Grill 中のため投入できません。先に Grilled を押して内容を確定してください')
   }
   return todo
 }
@@ -202,7 +212,7 @@ async function deliverTaskPrompt(
   paneId: string,
   taskPrompt: string,
   todoId: number,
-  options: DispatchOptions
+  options: AgentLaunchOptions
 ): Promise<boolean> {
   try {
     await herdr.submitPrompt(paneId, taskPrompt)
@@ -228,15 +238,18 @@ async function deliverTaskPrompt(
   return false
 }
 
-async function startClaudeAndSendTask(
+// command を pane で起動し、idle になるのを待ってから prompt を渡す。
+// agentName はタイムアウト時のメッセージにだけ使う。戻り値は deliverTaskPrompt
+// と同じ「受け取ったと確認できたか」。
+export async function launchAgentSession(
   herdr: HerdrClient,
   workspace: CreatedWorkspace,
-  taskPrompt: string,
+  command: string,
+  agentName: string,
+  prompt: string,
   todoId: number,
-  model: string | null,
-  options: DispatchOptions
+  options: AgentLaunchOptions
 ): Promise<boolean> {
-  const command = buildAgentCommand(options, model)
   logger.info('Starting agent in pane', {
     todoId,
     workspaceId: workspace.workspaceId,
@@ -252,20 +265,20 @@ async function startClaudeAndSendTask(
     options.agentReadyTimeoutMs ?? DEFAULT_AGENT_READY_TIMEOUT_MS,
     options.pollIntervalMs ?? DEFAULT_POLL_INTERVAL_MS,
     options.sleep ?? defaultSleep,
-    model === CODEX_MODEL ? 'Codex' : 'Claude Code'
+    agentName
   )
 
   // idle is necessary but not sufficient: the TUI may still be initializing
   // and unable to accept input the instant herdr detects the agent.
   await (options.sleep ?? defaultSleep)(options.settleMs ?? DEFAULT_SETTLE_MS)
 
-  return deliverTaskPrompt(herdr, workspace.paneId, taskPrompt, todoId, options)
+  return deliverTaskPrompt(herdr, workspace.paneId, prompt, todoId, options)
 }
 
 // Best-effort: closes the herdr workspace we just created and clears the
 // todo's dispatch info so a failed dispatch doesn't leave the DB pointing at
 // an orphaned (or now-closed) workspace.
-async function rollbackDispatch(
+export async function rollbackDispatch(
   db: Database,
   herdr: HerdrClient,
   todoId: number,
@@ -289,13 +302,12 @@ async function rollbackDispatch(
   todoRepo.clearDispatch(db, todoId)
 }
 
-async function createLoggedWorkspace(
+export async function createLoggedWorkspace(
   herdr: HerdrClient,
-  todo: Todo,
+  todoId: number,
+  label: string,
   cwd: string
 ): Promise<CreatedWorkspace> {
-  const todoId = todo.id
-  const label = herdrWorkspaceLabel(todo)
   logger.info('Creating herdr workspace for dispatch', { todoId, label, cwd })
   const workspace = await herdr.createWorkspace({ cwd, label })
   logger.info('Created herdr workspace', {
@@ -358,7 +370,10 @@ function resolveAndPersistModel(
 // NOT shell-argv-safe the way exec()'s array arguments are).
 // CODEX_MODEL is the one exception to "model becomes --model": it swaps the
 // binary itself, launching Codex with its own configured default model.
-function buildAgentCommand(options: DispatchOptions, model: string | null): string {
+export function buildAgentCommand(
+  options: Pick<DispatchOptions, 'claudeBin' | 'codexBin'>,
+  model: string | null
+): string {
   if (model === CODEX_MODEL) {
     return options.codexBin ?? CODEX_MODEL
   }
@@ -387,7 +402,7 @@ async function dispatchTodoOnce(
   const taskPrompt = buildTaskPrompt(todo, options.promptBody)
 
   await herdr.assertDispatchCompatible?.()
-  const workspace = await createLoggedWorkspace(herdr, todo, workspacePath)
+  const workspace = await createLoggedWorkspace(herdr, todoId, herdrWorkspaceLabel(todo), workspacePath)
 
   // Record the new session immediately: if a later step fails we can both
   // detect (session_state) and roll back (herdrWorkspaceId) the workspace we
@@ -405,7 +420,15 @@ async function dispatchTodoOnce(
   // running fine and rolling back would just discard a usable session.
   let promptDelivered: boolean
   try {
-    promptDelivered = await startClaudeAndSendTask(herdr, workspace, taskPrompt, todoId, model, options)
+    promptDelivered = await launchAgentSession(
+      herdr,
+      workspace,
+      buildAgentCommand(options, model),
+      model === CODEX_MODEL ? 'Codex' : 'Claude Code',
+      taskPrompt,
+      todoId,
+      options
+    )
   } catch (err) {
     await rollbackDispatch(db, herdr, todoId, workspace.workspaceId, err)
     throw err
@@ -432,9 +455,9 @@ async function dispatchTodoOnce(
 // working state alone cannot reject two requests racing to create a workspace.
 const inFlightDispatches = new WeakMap<Database, Set<number>>()
 
-export async function dispatchTodo(
-  db: Database, herdr: HerdrClient, todoId: number, options: DispatchOptions
-): Promise<DispatchResult> {
+// dispatch と Grill は同じ枠を取り合う: どちらも todo の herdr セッションを
+// 作るので、同じ todo への同時実行も、WIP 上限のすり抜けも同様に防ぐ。
+export async function withDispatchSlot<T>(db: Database, todoId: number, fn: () => Promise<T>): Promise<T> {
   let pending = inFlightDispatches.get(db)
   if (!pending) {
     pending = new Set<number>()
@@ -446,8 +469,14 @@ export async function dispatchTodo(
   assertWipAvailable(db, todoId, pending)
   pending.add(todoId)
   try {
-    return await dispatchTodoOnce(db, herdr, todoId, options)
+    return await fn()
   } finally {
     pending.delete(todoId)
   }
+}
+
+export async function dispatchTodo(
+  db: Database, herdr: HerdrClient, todoId: number, options: DispatchOptions
+): Promise<DispatchResult> {
+  return withDispatchSlot(db, todoId, () => dispatchTodoOnce(db, herdr, todoId, options))
 }

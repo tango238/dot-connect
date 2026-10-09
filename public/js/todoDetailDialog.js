@@ -1,7 +1,7 @@
 // "TODO detail" modal, opened by clicking a row's title. The row itself
 // truncates the description to one line and shows none of the timestamps, so
-// this is where the full record is visible — and where a TODO's linked
-// GitHub Pull Requests are added, refreshed, and removed.
+// this is where the full record is visible — and where the TODO is edited and
+// its linked GitHub Pull Requests are added, refreshed, and removed.
 //
 // Only the todo's id is held here — never a copy of the todo. Every render
 // re-reads it from state, so the 10s herdr poll keeps the open dialog
@@ -10,7 +10,7 @@
 // the refreshed state rather than from a local copy of the response.
 
 import { api } from './api.js'
-import { refreshTodos, toggleTodoComplete } from './data.js'
+import { refreshBoth, refreshTodos, toggleTodoComplete } from './data.js'
 import { needsCompletionConfirm } from './lib/completionConfirm.js'
 import { formatFileSize, uploadDisabledReason } from './lib/attachment.js'
 import {
@@ -20,11 +20,15 @@ import {
   pullRequestStateBadge,
 } from './lib/pullRequest.js'
 import { commentDraftError, isCommentSubmitShortcut, normalizeCommentBody } from './lib/todoComment.js'
+import { buildModelEditPatch } from './lib/modelPatch.js'
+import { resolveModelSelectValue } from './lib/modelOptions.js'
 import { DEFAULT_MINUTES, MAX_MINUTES, formatRemaining, isActive, remainingMs } from './lib/pomodoro.js'
 import { detailRows, formatDateTime } from './lib/todoDetail.js'
+import { buildWorkspacePathEditPatch } from './lib/workspacePathPatch.js'
 import { currentPomodoro, onPomodoroChange, startPomodoro } from './pomodoro.js'
 import { isSettingsDialogOpen } from './settingsDialog.js'
 import { getState, subscribe } from './state.js'
+import { modelOptions, priorityOptions } from './todoFormOptions.js'
 import { $, escapeHtml, toast, toastError, todayIso, twoStepConfirm, withButtonBusy } from './utils.js'
 
 let detailTodoId = null
@@ -46,6 +50,18 @@ let selectedFile = null
 let commentDraft = ''
 // The ポモドーロ minutes field, held here for the same reason.
 let pomodoroMinutesValue = String(DEFAULT_MINUTES)
+// The edit form's values while the TODO is being edited, null otherwise. Held
+// here for the same reason as the drafts above: a re-render rebuilds the form.
+let editDraft = null
+// Edit form field id → editDraft key.
+const EDIT_FIELDS = {
+  'detail-edit-title': 'title',
+  'detail-edit-desc': 'description',
+  'detail-edit-priority': 'priority',
+  'detail-edit-due': 'dueDate',
+  'detail-edit-ws': 'workspacePath',
+  'detail-edit-model': 'model',
+}
 // Set while a PR or attachment request is in flight, to disable the buttons —
 // these hit the network twice (DB + `gh`, or DB + disk), so a double click is
 // easy to land.
@@ -53,6 +69,12 @@ let busy = false
 
 function isOpen() {
   return detailTodoId !== null
+}
+
+// Exported so the poll loop can skip background refreshes while the TODO is
+// being edited (see todos.js's hasOpenTodoForm).
+export function isEditingTodoDetail() {
+  return isOpen() && editDraft !== null
 }
 
 function currentTodo() {
@@ -69,6 +91,86 @@ function descriptionBlock(todo) {
   return todo.description
     ? `<div class="detail-desc">${escapeHtml(todo.description)}</div>`
     : `<div class="detail-empty">説明なし</div>`
+}
+
+function startEditing(todo) {
+  editDraft = {
+    title: todo.title,
+    description: todo.description ?? '',
+    priority: todo.priority ?? 'none',
+    dueDate: todo.dueDate ?? '',
+    workspacePath: todo.workspacePath ?? '',
+    model: resolveModelSelectValue(todo.model, getState().models),
+  }
+}
+
+function editFormBlock() {
+  const d = editDraft
+  return `<div class="inline-form stacked detail-edit-form">
+    <div class="form-field grow">
+      <label for="detail-edit-title">タイトル</label>
+      <input id="detail-edit-title" type="text" required value="${escapeHtml(d.title)}">
+    </div>
+    <div class="form-field grow">
+      <label for="detail-edit-desc">説明</label>
+      <textarea id="detail-edit-desc" rows="6">${escapeHtml(d.description)}</textarea>
+    </div>
+    <div class="form-field">
+      <label for="detail-edit-priority">優先度</label>
+      <select id="detail-edit-priority">${priorityOptions(d.priority)}</select>
+    </div>
+    <div class="form-field">
+      <label for="detail-edit-due">期限(任意)</label>
+      <input id="detail-edit-due" type="date" value="${escapeHtml(d.dueDate)}">
+    </div>
+    <div class="form-field grow">
+      <label for="detail-edit-ws">作業ディレクトリ(任意)</label>
+      <input id="detail-edit-ws" type="text" list="workspace-datalist" value="${escapeHtml(d.workspacePath)}" placeholder="例: /Users/you/projects/my-app (登録済みから選択、または自由入力)">
+      <p class="field-hint">herdr投入時に必須。ここで設定しておくと投入時に引き継がれます。</p>
+    </div>
+    <div class="form-field">
+      <label for="detail-edit-model">モデル(任意)</label>
+      <select id="detail-edit-model">${modelOptions(d.model)}</select>
+    </div>
+    <div class="form-actions">
+      <button type="button" class="btn btn-accent" data-action="save-edit-todo" ${busy ? 'disabled' : ''}>保存</button>
+      <button type="button" class="btn btn-ghost" data-action="cancel-edit-todo">キャンセル</button>
+    </div>
+    <div class="form-error" id="detail-edit-error" hidden></div>
+  </div>`
+}
+
+async function saveEdit() {
+  const title = editDraft.title.trim()
+  if (!title) {
+    showDialogError('#detail-edit-error', 'タイトルは必須です')
+    return
+  }
+  const todoId = detailTodoId
+  const draft = editDraft
+  busy = true
+  renderDialog()
+  try {
+    await api.updateTodo(todoId, {
+      title,
+      description: draft.description.trim(),
+      priority: draft.priority,
+      dueDate: draft.dueDate || null,
+      ...buildWorkspacePathEditPatch(draft.workspacePath),
+      ...buildModelEditPatch(draft.model),
+    })
+    editDraft = null
+    // refreshBoth, not refreshTodos: a title change shows up in the
+    // milestone cards too.
+    await refreshBoth()
+    toast('TODOを更新しました')
+  } catch (err) {
+    toastError(err.message)
+    showDialogError('#detail-edit-error', err.message)
+  } finally {
+    busy = false
+    renderDialog()
+  }
 }
 
 function rowsBlock(todo) {
@@ -258,6 +360,7 @@ function renderDialog() {
     // is a normal outcome of a delete landing during a poll, not an error,
     // so it closes quietly without a toast.
     detailTodoId = null
+    editDraft = null
     backdrop.hidden = true
     return
   }
@@ -268,13 +371,13 @@ function renderDialog() {
       <button type="button" class="btn btn-ghost" data-action="close-todo-detail" aria-label="閉じる">×</button>
     </div>
     ${milestoneLine(todo)}
-    ${descriptionBlock(todo)}
-    ${rowsBlock(todo)}
+    ${editDraft ? editFormBlock() : `${descriptionBlock(todo)}${rowsBlock(todo)}`}
     ${pullRequestsBlock(todo)}
     ${attachmentsBlock(todo)}
     ${pomodoroBlock(todo)}
     ${commentsBlock(todo)}
     <div class="modal-footer">
+      ${editDraft ? '' : '<button type="button" class="btn" data-action="edit-todo">編集</button>'}
       ${completeButtonHtml(todo)}
       <button type="button" class="btn btn-ghost" data-action="close-todo-detail">閉じる</button>
     </div>`
@@ -286,12 +389,14 @@ export function openTodoDetail(todoId) {
   selectedFile = null
   commentDraft = ''
   pomodoroMinutesValue = String(DEFAULT_MINUTES)
+  editDraft = null
   busy = false
   renderDialog()
 }
 
 function closeDialog() {
   detailTodoId = null
+  editDraft = null
   renderDialog()
 }
 
@@ -434,6 +539,17 @@ function handleDialogClick(ev) {
   const id = Number(btn.dataset.id)
   if (action === 'close-todo-detail') {
     closeDialog()
+  } else if (action === 'edit-todo') {
+    const todo = currentTodo()
+    if (!todo) return
+    startEditing(todo)
+    renderDialog()
+    $('#detail-edit-title')?.focus()
+  } else if (action === 'cancel-edit-todo') {
+    editDraft = null
+    renderDialog()
+  } else if (action === 'save-edit-todo') {
+    if (!busy) saveEdit()
   } else if (action === 'toggle-todo-complete') {
     // 一覧の ✔ と同じ扱い: セッション付きの完了だけ二段階確認を挟む
     // (理由は completionConfirm.js)。
@@ -478,6 +594,8 @@ export function initTodoDetailDialog() {
     if (ev.target.id === 'pr-url-input') pullRequestUrlValue = ev.target.value
     if (ev.target.id === 'comment-body-input') commentDraft = ev.target.value
     if (ev.target.id === 'pomodoro-minutes-input') pomodoroMinutesValue = ev.target.value
+    const editKey = EDIT_FIELDS[ev.target.id]
+    if (editKey && editDraft) editDraft[editKey] = ev.target.value
   })
   // No re-render here on purpose: while the picked input is still on screen it
   // shows the file name itself, and rebuilding it would blank that label. The
@@ -519,6 +637,13 @@ export function initTodoDetailDialog() {
   document.addEventListener('keydown', (ev) => {
     if (ev.key !== 'Escape' || !isOpen()) return
     if (isSettingsDialogOpen()) return
+    // While editing, Escape backs out of the edit first rather than
+    // discarding it together with the dialog.
+    if (editDraft) {
+      editDraft = null
+      renderDialog()
+      return
+    }
     closeDialog()
   })
   // Keep an open dialog in step with the poll loop's state updates — except
@@ -528,7 +653,8 @@ export function initTodoDetailDialog() {
   // this dialog's render is skipped, so the rest of the page still updates,
   // and any action-triggered renderDialog() call still runs.
   subscribe(() => {
-    if (isOpen() && !TYPING_FIELD_IDS.has(document.activeElement?.id)) renderDialog()
+    const focusedId = document.activeElement?.id
+    if (isOpen() && !TYPING_FIELD_IDS.has(focusedId) && !(focusedId in EDIT_FIELDS)) renderDialog()
   })
   // Starting, pausing or finishing the timer flips this dialog's ポモドーロ
   // panel between "start" and "running", so it follows those too.

@@ -58,4 +58,9 @@ export interface AppDependencies {
   readonly dispatchSleep?: (ms: number) => Promise<void>
   readonly dispatchSettleMs?: number
   readonly dispatchDeliveryConfirmTimeoutMs?: number
+  // Grilled 押下時、GRILLED.md の催促後に待つ時間(既定 90 秒)。
+  readonly grillResultTimeoutMs?: number
+  // Grill の一時ディレクトリの親。省略時は grillRootFor(dbPath)
+  // (<db dir>/grill)。テストが tmp を差し込むためのもの。
+  readonly grillRoot?: string
 }

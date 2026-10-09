@@ -5,6 +5,7 @@ import * as todoRepo from '../db/todoRepo'
 import { resolveUploadDir } from '../db/uploadDirLocation'
 import { removeStoredFilesForTodo } from '../services/attachmentFiles'
 import { assertAllowedModel } from '../services/modelValidation'
+import { cleanupGrill } from '../services/grillService'
 import { completeTodo } from '../services/todoCompletionService'
 import { assertNoLiveSession } from '../services/todoDeletionService'
 import type { AppDependencies } from './dependencies'
@@ -99,6 +100,8 @@ function deleteTodoHandler(deps: AppDependencies) {
       const { id } = parseOrThrow(idParamSchema, c.req.param())
       // A live herdr session must be ended first (409 otherwise).
       await assertNoLiveSession(deps.db, deps.herdr, id)
+      // Grill の一時ディレクトリも、行が消えると誰も消せなくなる。
+      cleanupGrill(deps.db, id)
       // Before the row goes: ON DELETE CASCADE clears todo_attachments but
       // not the files those rows name, and once they're gone nothing can.
       removeStoredFilesForTodo(deps.db, id, resolveUploadDir(deps.db, deps.dbPath).path)

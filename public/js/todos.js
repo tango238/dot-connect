@@ -4,12 +4,11 @@ import { api } from './api.js'
 import { refreshBoth, refreshTodos, refreshWorkspaces, toggleTodoComplete } from './data.js'
 import { dispatchDisabledReason, sessionFocusDisabledReason } from './lib/capabilities.js'
 import { wipBlockedReason } from './lib/wipLimit.js'
+import { grillButton } from './lib/grill.js'
 import { dueBadge } from './lib/dueBadge.js'
 import { shouldRestoreCapturedForm } from './lib/formCapture.js'
-import { hasOpenForm } from './lib/formGuard.js'
 import { modelBadge } from './lib/modelBadge.js'
-import { buildModelCreatePatch, buildModelEditPatch } from './lib/modelPatch.js'
-import { buildModelSelectChoices, resolveModelSelectValue } from './lib/modelOptions.js'
+import { buildModelCreatePatch } from './lib/modelPatch.js'
 import { priorityBadge } from './lib/priorityBadge.js'
 import { pullRequestCount } from './lib/pullRequest.js'
 import { SESSION_LABEL } from './lib/todoDetail.js'
@@ -18,26 +17,25 @@ import { needsCompletionConfirm } from './lib/completionConfirm.js'
 import { groupByRecentActivity } from './lib/todoActivity.js'
 import { sortActiveTodos } from './lib/todoOrder.js'
 import { buildWorkspaceDatalistOptions } from './lib/workspaceOptions.js'
-import { buildWorkspacePathCreatePatch, buildWorkspacePathEditPatch } from './lib/workspacePathPatch.js'
+import { buildWorkspacePathCreatePatch } from './lib/workspacePathPatch.js'
 import { openLinkMenu } from './linkMenu.js'
 import { openPromptDialog } from './promptDialog.js'
 import { openWorkspaceManager } from './workspaceManager.js'
 import { activeMilestones, getState, setState } from './state.js'
-import { openTodoDetail } from './todoDetailDialog.js'
+import { isEditingTodoDetail, openTodoDetail } from './todoDetailDialog.js'
+import { modelOptions, priorityOptions } from './todoFormOptions.js'
 import { $, $all, escapeHtml, toast, toastError, toastWarning, todayIso, twoStepConfirm, withButtonBusy } from './utils.js'
-
-// Which todo currently has its inline title/description edit form open.
-let editFormTodoId = null
 
 // Synthetic id for the new-todo form in captureOpenFormValues/
 // restoreOpenFormValues below — it has no todo id of its own yet.
 const NEW_FORM_ID = 'new'
 
-// Exported so main.js's poll loop can skip a background refresh while this
-// is open — otherwise the poll-triggered re-render rebuilds the row from
-// state and wipes out whatever the user is mid-typing (F43).
+// Exported so main.js's poll loop can skip a background refresh while a
+// TODO is being edited — otherwise the poll-triggered re-render rebuilds the
+// form from state and wipes out whatever the user is mid-typing (F43). The
+// edit form lives in the detail dialog (todoDetailDialog.js).
 export function hasOpenTodoForm() {
-  return hasOpenForm(editFormTodoId)
+  return isEditingTodoDetail()
 }
 
 function sessBadge(todo) {
@@ -87,26 +85,6 @@ function prCountBadge(todo) {
   return `<span class="pr-count-badge" title="紐付けられたPR">PR ${count}</span>`
 }
 
-function priorityOptions(selected) {
-  const options = [
-    { value: 'none', label: 'なし' },
-    { value: 'low', label: '低' },
-    { value: 'high', label: '高' },
-  ]
-  return options
-    .map((o) => `<option value="${o.value}" ${o.value === selected ? 'selected' : ''}>${o.label}</option>`)
-    .join('')
-}
-
-function modelOptions(selected) {
-  return buildModelSelectChoices(getState().models)
-    .map(
-      (o) =>
-        `<option value="${escapeHtml(o.value)}" ${o.value === selected ? 'selected' : ''}>${escapeHtml(o.label)}</option>`
-    )
-    .join('')
-}
-
 /** Rebuilds the shared #workspace-datalist from state.workspaces. Exported
  * so main.js can call it on every state change alongside renderSidebar()/
  * renderActivePage() — unlike those, this never touches a form's own
@@ -130,27 +108,35 @@ function msChip(todo) {
 }
 
 function todoActions(todo) {
-  // Editing title/description is allowed regardless of status/session, same
-  // as milestone editing — so it's built once and prepended everywhere.
-  const editBtn = `<button class="btn btn-ghost" data-action="toggle-edit-todo" data-id="${todo.id}">編集</button>`
+  // Editing lives in the detail dialog (click the title), so the row only
+  // carries the actions that change a todo's lifecycle.
   const del = `<button class="btn btn-ghost del-btn" aria-label="TODOを削除" title="削除" data-action="delete" data-id="${todo.id}">🗑</button>`
   if (todo.status === 'done') {
     const date = todo.completedAt ? escapeHtml(todo.completedAt.slice(0, 10)) : ''
-    return `<span class="todo-date">✔ ${date}</span>${editBtn}${del}`
+    return `<span class="todo-date">✔ ${date}</span>${del}`
   }
-  if (todo.sessionState) {
+  const grill = grillButton(todo)
+  if (todo.sessionState || todo.grillDir) {
     // Focusing a pane needs herdr on this machine. Where it's missing the
     // button is greyed out with the reason on hover rather than dropped —
     // the row still has a session worth showing, just no way to jump to it.
     const focusReason = sessionFocusDisabledReason(getState().capabilities)
-    const openBtn = focusReason
-      ? `<button class="btn" data-action="open-session" data-id="${todo.id}" disabled title="${escapeHtml(focusReason)}">セッションを開く</button>`
-      : `<button class="btn" data-action="open-session" data-id="${todo.id}">セッションを開く</button>`
+    const openBtn = !todo.sessionState
+      ? ''
+      : focusReason
+        ? `<button class="btn" data-action="open-session" data-id="${todo.id}" disabled title="${escapeHtml(focusReason)}">セッションを開く</button>`
+        : `<button class="btn" data-action="open-session" data-id="${todo.id}">セッションを開く</button>`
+    if (grill) {
+      // Mid-grill: the session belongs to the interview, so neither
+      // completing nor dispatching makes sense until it is applied.
+      const grilledBtn = `<button class="btn btn-accent" data-action="${grill.action}" data-id="${todo.id}" title="${escapeHtml(grill.title)}">${grill.label}</button>`
+      return `${openBtn}${grilledBtn}${del}`
+    }
     const completeBtn =
       todo.sessionState !== 'working'
         ? `<button class="btn btn-ghost" data-action="toggle-complete" data-id="${todo.id}">完了にする</button>`
         : ''
-    return `${openBtn}${completeBtn}${editBtn}${del}`
+    return `${openBtn}${completeBtn}${del}`
   }
   // workspacePath is now chosen in the dispatch dialog itself (prefilled
   // from the todo, editable there), so the dispatch button is always
@@ -164,43 +150,11 @@ function todoActions(todo) {
   const dispatchBtn = dispatchReason
     ? `<button class="btn btn-accent" data-action="dispatch" data-id="${todo.id}" disabled title="${escapeHtml(dispatchReason)}">▶ herdrに投入</button>`
     : `<button class="btn btn-accent" data-action="dispatch" data-id="${todo.id}">▶ herdrに投入</button>`
-  return `${dispatchBtn}${editBtn}${del}`
-}
-
-function editTodoForm(todo) {
-  if (editFormTodoId !== todo.id) return ''
-  return `<div class="inline-form stacked todo-inline-form" data-edit-todo-form="${todo.id}">
-    <div class="form-field grow">
-      <label for="todo-edit-title-${todo.id}">タイトル</label>
-      <input id="todo-edit-title-${todo.id}" type="text" required value="${escapeHtml(todo.title)}">
-    </div>
-    <div class="form-field grow">
-      <label for="todo-edit-desc-${todo.id}">説明</label>
-      <textarea id="todo-edit-desc-${todo.id}" rows="3">${escapeHtml(todo.description ?? '')}</textarea>
-    </div>
-    <div class="form-field">
-      <label for="todo-edit-priority-${todo.id}">優先度</label>
-      <select id="todo-edit-priority-${todo.id}">${priorityOptions(todo.priority ?? 'none')}</select>
-    </div>
-    <div class="form-field">
-      <label for="todo-edit-due-${todo.id}">期限(任意)</label>
-      <input id="todo-edit-due-${todo.id}" type="date" value="${escapeHtml(todo.dueDate ?? '')}">
-    </div>
-    <div class="form-field grow">
-      <label for="todo-edit-ws-${todo.id}">作業ディレクトリ(任意)</label>
-      <input id="todo-edit-ws-${todo.id}" type="text" list="workspace-datalist" value="${escapeHtml(todo.workspacePath ?? '')}" placeholder="例: /Users/you/projects/my-app (登録済みから選択、または自由入力)">
-      <p class="field-hint">herdr投入時に必須。ここで設定しておくと投入時に引き継がれます。</p>
-    </div>
-    <div class="form-field">
-      <label for="todo-edit-model-${todo.id}">モデル(任意)</label>
-      <select id="todo-edit-model-${todo.id}">${modelOptions(resolveModelSelectValue(todo.model, getState().models))}</select>
-    </div>
-    <div class="form-actions">
-      <button type="button" class="btn btn-accent" data-action="save-edit-todo" data-id="${todo.id}">保存</button>
-      <button type="button" class="btn btn-ghost" data-action="cancel-edit-todo">キャンセル</button>
-    </div>
-    <div class="form-error" id="todo-edit-error-${todo.id}" hidden></div>
-  </div>`
+  const grillTitle = dispatchReason ?? grill?.title ?? ''
+  const grillBtn = grill
+    ? `<button class="btn" data-action="${grill.action}" data-id="${todo.id}"${dispatchReason ? ' disabled' : ''} title="${escapeHtml(grillTitle)}">${grill.label}</button>`
+    : ''
+  return `${dispatchBtn}${grillBtn}${del}`
 }
 
 function todoRow(todo) {
@@ -216,7 +170,6 @@ function todoRow(todo) {
       <div class="todo-meta">${dueBadgeHtml(todo)}${prioBadge(todo)}${reviewBadge(todo)}${modelBadgeHtml(todo)}${prCountBadge(todo)}${msChip(todo)}${sessBadge(todo)}<span class="todo-date">${escapeHtml(todo.workspacePath ?? '')}</span></div>
     </div>
     <div class="todo-actions">${todoActions(todo)}</div>
-    ${editTodoForm(todo)}
   </div>`
 }
 
@@ -357,6 +310,39 @@ async function deleteTodo(id) {
   }
 }
 
+async function grillTodo(id) {
+  try {
+    await api.grillTodo(id)
+    toast('Grill セッションを開始しました')
+    await refreshBoth()
+  } catch (err) {
+    if (err.extra?.code === 'wip_limit_reached') {
+      toastWarning(err.message)
+    } else {
+      toastError(err.message)
+    }
+  }
+}
+
+// The server waits (up to ~90 s) for the interview's result file, so the
+// caller keeps the button busy for the duration.
+async function finishGrill(id) {
+  try {
+    await api.finishGrill(id)
+    toast('Grill の結果で TODO を更新しました')
+    await refreshBoth()
+  } catch (err) {
+    const code = err.extra?.code
+    if (code === 'grill_result_pending' || code === 'grill_cancelled') {
+      toastWarning(err.message)
+      // A cancelled grill clears grillDir; re-render so the row says "Grill".
+      await refreshTodos()
+    } else {
+      toastError(err.message)
+    }
+  }
+}
+
 async function linkMilestone(todoId, milestoneId) {
   const todo = getState().todos.find((t) => t.id === todoId)
   try {
@@ -391,38 +377,6 @@ async function createTodo() {
     })
     toast('TODOを作成しました')
     $('#new-todo-form').hidden = true
-    await refreshBoth()
-  } catch (err) {
-    toastError(err.message)
-  }
-}
-
-async function saveEditTodo(id) {
-  const title = $(`#todo-edit-title-${id}`)?.value.trim()
-  const description = $(`#todo-edit-desc-${id}`)?.value.trim() ?? ''
-  const priority = $(`#todo-edit-priority-${id}`)?.value
-  const dueRaw = $(`#todo-edit-due-${id}`)?.value ?? ''
-  const wsRaw = $(`#todo-edit-ws-${id}`)?.value ?? ''
-  const modelRaw = $(`#todo-edit-model-${id}`)?.value ?? ''
-  const errorEl = $(`#todo-edit-error-${id}`)
-  if (!title) {
-    if (errorEl) {
-      errorEl.textContent = 'タイトルは必須です'
-      errorEl.hidden = false
-    }
-    return
-  }
-  try {
-    await api.updateTodo(id, {
-      title,
-      description,
-      priority,
-      dueDate: dueRaw || null,
-      ...buildWorkspacePathEditPatch(wsRaw),
-      ...buildModelEditPatch(modelRaw),
-    })
-    toast('TODOを更新しました')
-    editFormTodoId = null
     await refreshBoth()
   } catch (err) {
     toastError(err.message)
@@ -472,16 +426,12 @@ function handleListClick(ev) {
   } else if (action === 'dispatch') {
     const todo = getState().todos.find((t) => t.id === id)
     if (todo) openPromptDialog(todo)
+  } else if (action === 'grill') {
+    withButtonBusy(btn, () => grillTodo(id))
+  } else if (action === 'grilled') {
+    withButtonBusy(btn, () => finishGrill(id))
   } else if (action === 'open-session') {
     openSession(id)
-  } else if (action === 'toggle-edit-todo') {
-    editFormTodoId = editFormTodoId === id ? null : id
-    renderTodoList()
-  } else if (action === 'cancel-edit-todo') {
-    editFormTodoId = null
-    renderTodoList()
-  } else if (action === 'save-edit-todo') {
-    saveEditTodo(id)
   } else if (action === 'open-todo-detail') {
     openTodoDetail(id)
   }
@@ -491,9 +441,8 @@ function isNewFormOpen() {
   return !$('#new-todo-form').hidden
 }
 
-// Snapshots whichever inline form(s) are open — the new-todo form and an
-// existing todo's edit form aren't mutually exclusive here (unlike
-// milestones.js's add/edit pair), so both are captured independently.
+// Snapshots the new-todo form if it is open (editing an existing todo
+// happens in the detail dialog, whose draft survives re-renders on its own).
 // Used to survive refreshWorkspaces() after closing the workspace manager,
 // which (like refreshLabelsAndMilestones() in milestones.js) triggers a
 // full re-render that would otherwise wipe out whatever the user is
@@ -512,23 +461,11 @@ function captureOpenFormValues() {
       model: $('#new-todo-model')?.value,
     })
   }
-  if (editFormTodoId !== null) {
-    const id = editFormTodoId
-    forms.push({
-      id,
-      title: $(`#todo-edit-title-${id}`)?.value,
-      desc: $(`#todo-edit-desc-${id}`)?.value,
-      priority: $(`#todo-edit-priority-${id}`)?.value,
-      due: $(`#todo-edit-due-${id}`)?.value,
-      ws: $(`#todo-edit-ws-${id}`)?.value,
-      model: $(`#todo-edit-model-${id}`)?.value,
-    })
-  }
   return forms
 }
 
 function currentOpenIdFor(entryId) {
-  return entryId === NEW_FORM_ID ? (isNewFormOpen() ? NEW_FORM_ID : null) : editFormTodoId
+  return entryId === NEW_FORM_ID ? (isNewFormOpen() ? NEW_FORM_ID : null) : null
 }
 
 function setFieldValue(elId, value) {
@@ -550,13 +487,6 @@ function restoreOpenFormValues(captured) {
       setFieldValue('new-todo-due', entry.due)
       setFieldValue('new-todo-ws', entry.ws)
       setFieldValue('new-todo-model', entry.model)
-    } else {
-      setFieldValue(`todo-edit-title-${entry.id}`, entry.title)
-      setFieldValue(`todo-edit-desc-${entry.id}`, entry.desc)
-      setFieldValue(`todo-edit-priority-${entry.id}`, entry.priority)
-      setFieldValue(`todo-edit-due-${entry.id}`, entry.due)
-      setFieldValue(`todo-edit-ws-${entry.id}`, entry.ws)
-      setFieldValue(`todo-edit-model-${entry.id}`, entry.model)
     }
   }
 }

@@ -50,6 +50,8 @@ export const api = {
   completeTodo: (id) => request('POST', `/api/todos/${id}/complete`),
   reopenTodo: (id) => request('POST', `/api/todos/${id}/reopen`),
   deleteTodo: (id) => request('DELETE', `/api/todos/${id}`),
+  grillTodo: (id) => request('POST', `/api/todos/${id}/grill`),
+  finishGrill: (id) => request('POST', `/api/todos/${id}/grilled`),
   // All three return the updated todo (PR links live on the todo itself),
   // so callers refresh from the response rather than re-fetching the list.
   addTodoPullRequest: (id, url) => request('POST', `/api/todos/${id}/pull-requests`, { url }),

@@ -3,6 +3,7 @@ import * as todoRepo from '../db/todoRepo'
 import type { HerdrAgentStatus, HerdrClient } from '../herdr/herdrClient'
 import { logger } from '../logger'
 import type { Todo } from '../types'
+import { cleanupGrill } from './grillService'
 
 // TODOを完了にして、その仕事のために開いた herdr のワークスペースを畳む。
 //
@@ -77,15 +78,26 @@ export async function completeTodo(
   }
 
   const completed = todoRepo.complete(db, todoId)
-  const session = sessionToClose(before)
-  if (completed === null || session === null) {
+  if (completed === null) {
     return completed
+  }
+  // 完了は Grill の放棄でもある。ワークスペースを閉じられたかに関わらず、
+  // 一時ディレクトリと grill_dir は片付ける(残すと再オープン後に Grill も
+  // 投入もできなくなる)。
+  const grillAbandoned = before.grillDir !== null
+  if (grillAbandoned) {
+    cleanupGrill(db, todoId)
+  }
+  const afterCleanup = grillAbandoned ? todoRepo.getById(db, todoId) : completed
+  const session = sessionToClose(before)
+  if (session === null) {
+    return afterCleanup
   }
 
   const { workspaceId, paneId } = session
   const live = await liveStatusOf(herdr, paneId, todoId)
   if (live === undefined || !CLOSABLE_STATUSES.includes(live)) {
-    return completed
+    return afterCleanup
   }
 
   try {
@@ -104,7 +116,7 @@ export async function completeTodo(
       workspaceId,
       message: err instanceof Error ? err.message : String(err),
     })
-    return completed
+    return afterCleanup
   }
 
   // 閉じたペインを指したままにしない。完了行にはボタンが出ないので効くのは

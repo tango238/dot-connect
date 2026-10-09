@@ -2,6 +2,7 @@ import type { Context } from 'hono'
 import { Hono } from 'hono'
 import { dispatchTodo } from '../services/dispatchService'
 import { BadRequestError } from '../services/errors'
+import { finishGrill, type GrillOptions, grillRootFor, startGrill } from '../services/grillService'
 import { openSession } from '../services/sessionService'
 import type { AppDependencies } from './dependencies'
 import { handle, ok } from './response'
@@ -46,6 +47,48 @@ function dispatchTodoHandler(deps: AppDependencies) {
   }
 }
 
+function grillOptions(deps: AppDependencies): GrillOptions {
+  return {
+    claudeBin: deps.claudeBin,
+    allowedModels: deps.allowedModels,
+    grillRoot: deps.grillRoot ?? grillRootFor(deps.dbPath),
+    agentReadyTimeoutMs: deps.dispatchAgentReadyTimeoutMs,
+    pollIntervalMs: deps.dispatchPollIntervalMs,
+    sleep: deps.dispatchSleep,
+    settleMs: deps.dispatchSettleMs,
+    deliveryConfirmTimeoutMs: deps.dispatchDeliveryConfirmTimeoutMs,
+    resultTimeoutMs: deps.grillResultTimeoutMs,
+  }
+}
+
+// Grill: TODO を herdr 上の claude との対話で詰める(grillService.ts 参照)。
+// セッションは dispatch と同じく herdr を使うので macOS 限定。
+function grillTodoHandler(deps: AppDependencies) {
+  return async (c: Context) => {
+    return handle(c, async () => {
+      if (deps.platform !== 'darwin') {
+        throw new BadRequestError(MACOS_ONLY_MESSAGE)
+      }
+      const { id } = parseOrThrow(idParamSchema, c.req.param())
+      const result = await startGrill(deps.db, deps.herdr, id, grillOptions(deps))
+      return ok(c, result)
+    })
+  }
+}
+
+function grilledTodoHandler(deps: AppDependencies) {
+  return async (c: Context) => {
+    return handle(c, async () => {
+      if (deps.platform !== 'darwin') {
+        throw new BadRequestError(MACOS_ONLY_MESSAGE)
+      }
+      const { id } = parseOrThrow(idParamSchema, c.req.param())
+      const todo = await finishGrill(deps.db, deps.herdr, id, grillOptions(deps))
+      return ok(c, todo)
+    })
+  }
+}
+
 function openSessionHandler(deps: AppDependencies) {
   return async (c: Context) => {
     return handle(c, async () => {
@@ -67,6 +110,8 @@ export function createTodoSessionRoutes(deps: AppDependencies): Hono {
 
   app.post('/:id/dispatch', dispatchTodoHandler(deps))
   app.post('/:id/open-session', openSessionHandler(deps))
+  app.post('/:id/grill', grillTodoHandler(deps))
+  app.post('/:id/grilled', grilledTodoHandler(deps))
 
   return app
 }

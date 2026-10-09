@@ -596,6 +596,10 @@ h1 { font-size: 20px; font-weight: 700; }
 #todo-detail-dialog .prompt-panel { max-height: none; overflow-y: visible; }
 
 .todo-title[role="button"] { cursor: pointer; }
+.ms-todo-title[role="button"] { cursor: pointer; }
+.ms-todo-title[role="button"]:hover { text-decoration: underline; }
+.ms-todo-title[role="button"]:focus-visible { outline: 2px solid var(--text-faint); outline-offset: 2px; border-radius: 3px; }
+#todo-detail-dialog .detail-edit-form { margin: 8px 0 12px; }
 .todo-title[role="button"]:hover { text-decoration: underline; }
 .todo-title[role="button"]:focus-visible { outline: 2px solid var(--text-faint); outline-offset: 2px; border-radius: 3px; }
 
