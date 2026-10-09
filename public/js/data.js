@@ -68,7 +68,7 @@ export async function refreshHerdrStatus() {
 }
 
 export async function loadInitial() {
-  const [todos, milestones, herdr, labels, workspaces, models, capabilities] = await Promise.all([
+  const [todos, milestones, herdr, labels, workspaces, models, capabilities, settings] = await Promise.all([
     api.listTodos(),
     api.listMilestones(),
     api.herdrStatus(),
@@ -79,8 +79,11 @@ export async function loadInitial() {
     // failure here degrades to null (everything enabled) rather than
     // rejecting the Promise.all and taking the whole initial load with it.
     api.getCapabilities().catch(() => null),
+    // Same degrade-to-null: settings only drive the WIP meter here.
+    api.getSettings().catch(() => null),
   ])
   setState({
+    settings,
     todos,
     milestones,
     herdr,
@@ -113,10 +116,13 @@ export async function refreshStalePullRequests() {
 // A background snapshot is fetched separately from applying it so the caller
 // can recheck whether a draft was opened while these requests were in flight.
 export async function loadLiveSnapshot() {
-  const [todos, milestones, labels, workspaces] = await Promise.all([
+  const [todos, milestones, labels, workspaces, settings] = await Promise.all([
     api.listTodos(), api.listMilestones(), api.listLabels(), api.listWorkspaces(),
+    // Picks up a WIP limit changed from another window. A failed fetch keeps
+    // whatever settings are already shown rather than hiding the meter.
+    api.getSettings().catch(() => getState().settings),
   ])
-  return { todos, milestones, labels, workspaces }
+  return { todos, milestones, labels, workspaces, settings }
 }
 
 export function applyLiveSnapshot(snapshot) {

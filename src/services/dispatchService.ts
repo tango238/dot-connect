@@ -11,6 +11,7 @@ import type { Todo } from '../types'
 import { BadRequestError, ConflictError, NotFoundError } from './errors'
 import { herdrWorkspaceLabel } from './herdrWorkspaceLabel'
 import { assertAllowedModel, CODEX_MODEL, DEFAULT_ALLOWED_MODELS } from './modelValidation'
+import { assertWipAvailable } from './wipLimitService'
 
 const DEFAULT_AGENT_READY_TIMEOUT_MS = 15_000
 const DEFAULT_POLL_INTERVAL_MS = 500
@@ -432,6 +433,9 @@ export async function dispatchTodo(
     inFlightDispatches.set(db, pending)
   }
   if (pending.has(todoId)) throw new ConflictError(`Todo ${todoId} dispatch is already in progress`)
+  // Checked synchronously together with pending.add: in-flight dispatches
+  // occupy a WIP slot before their session is ever recorded in the DB.
+  assertWipAvailable(db, todoId, pending)
   pending.add(todoId)
   try {
     return await dispatchTodoOnce(db, herdr, todoId, options)

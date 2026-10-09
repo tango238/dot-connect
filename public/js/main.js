@@ -5,6 +5,7 @@ import { applyLiveSnapshot, loadLiveSnapshot, loadInitial, refreshHerdrStatus, r
 import { createLiveRefresh } from './lib/liveRefresh.js'
 import { initLabelManager } from './labelManager.js'
 import { isSidebarCollapsed, persistSidebarCollapsed } from './lib/sidebarState.js'
+import { wipMeter } from './lib/wipLimit.js'
 import { hasOpenMilestoneForm, initMilestones, renderMilestones, renderSideMilestones } from './milestones.js'
 import { initPromptDialog } from './promptDialog.js'
 import { ensureReportLoaded, initReport, regenerateLatestReport, renderReport } from './report.js'
@@ -50,8 +51,28 @@ function renderSidebar() {
   // .sidebar-collapsed .hs-detail), so mirror it into a title attribute —
   // that's the only way to still see connection status at a glance.
   $('#herdr-status').title = `herdr ${herdr.connected ? '接続中' : '未接続'} / ${count}件を管理中`
+  renderWipMeter(count)
   renderSideMilestones()
   refreshPomodoroLabel()
+}
+
+// Hidden entirely while the WIP limit is disabled (the default).
+function renderWipMeter(count) {
+  const { settings } = getState()
+  const el = $('#wip-meter')
+  if (!settings?.wipLimitEnabled) {
+    el.hidden = true
+    return
+  }
+  const meter = wipMeter(count, settings.wipLimit)
+  el.hidden = false
+  el.classList.toggle('is-full', meter.full)
+  el.classList.toggle('is-over', meter.over)
+  el.setAttribute('aria-valuenow', String(count))
+  el.setAttribute('aria-valuemax', String(settings.wipLimit))
+  el.title = `WIP ${meter.label}${meter.full ? '(上限に達しています)' : ''}`
+  $('#wip-cells').textContent = meter.cells
+  $('#wip-label').textContent = meter.label
 }
 
 // Icon-only collapsed rail (vs. hiding the sidebar outright) so nav stays

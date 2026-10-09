@@ -265,8 +265,11 @@ export const updateSettingsSchema = z
     uploadDir: z.string().trim().min(1).max(1000).optional(),
     // 範囲は idleRecapService.ts の MIN/MAX と同じ(1分〜24時間)
     idleRecapMinutes: z.number().int().min(1).max(1440).optional(),
+    wipLimitEnabled: z.boolean().optional(),
+    // 範囲は wipLimitService.ts の MIN/MAX と同じ
+    wipLimit: z.number().int().min(1).max(30).optional(),
   })
-  .refine((v) => v.uploadDir !== undefined || v.idleRecapMinutes !== undefined, {
+  .refine((v) => Object.values(v).some((value) => value !== undefined), {
     message: '変更する項目を指定してください',
   })
 

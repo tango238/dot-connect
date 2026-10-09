@@ -6,6 +6,7 @@ import { resolveUploadDir } from '../db/uploadDirLocation'
 import { removeStoredFilesForTodo } from '../services/attachmentFiles'
 import { assertAllowedModel } from '../services/modelValidation'
 import { completeTodo } from '../services/todoCompletionService'
+import { assertNoLiveSession } from '../services/todoDeletionService'
 import type { AppDependencies } from './dependencies'
 import { fail, handle, ok } from './response'
 import { createTodoSchema, idParamSchema, updateTodoSchema } from './schemas'
@@ -96,6 +97,8 @@ function deleteTodoHandler(deps: AppDependencies) {
   return async (c: Context) => {
     return handle(c, async () => {
       const { id } = parseOrThrow(idParamSchema, c.req.param())
+      // A live herdr session must be ended first (409 otherwise).
+      await assertNoLiveSession(deps.db, deps.herdr, id)
       // Before the row goes: ON DELETE CASCADE clears todo_attachments but
       // not the files those rows name, and once they're gone nothing can.
       removeStoredFilesForTodo(deps.db, id, resolveUploadDir(deps.db, deps.dbPath).path)

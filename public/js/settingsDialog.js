@@ -14,7 +14,7 @@
 import { herdrCompatibilityHtml } from './lib/herdrCompatibility.js'
 import { api } from './api.js'
 import { buildSettingsRows } from './lib/settingsInfo.js'
-import { getState, subscribe } from './state.js'
+import { getState, setState, subscribe } from './state.js'
 import { $, escapeHtml, toast, toastError } from './utils.js'
 
 let open = false
@@ -27,6 +27,10 @@ let saving = false
 // Same split for the idle-recap minutes box: what's typed vs. what's saved.
 let idleDraft = null
 let savingIdle = false
+// And for the WIP limit (checkbox + slot count, saved together).
+let wipEnabledDraft = null
+let wipLimitDraft = null
+let savingWip = false
 let herdrInfo = null
 let checkingHerdr = false
 let herdrError = ''
@@ -121,6 +125,34 @@ function renderIdleRow() {
     <p class="field-hint">herdr のセッションが、ユーザーからの応答がこの時間途絶えたときに recap を作業ログへ自動記録します。1〜1440分。セッション側は次回のチェック時にこの値を読み直します。</p>`
 }
 
+function wipEnabledValue() {
+  return wipEnabledDraft ?? settings?.wipLimitEnabled ?? false
+}
+
+function wipLimitValue() {
+  return wipLimitDraft ?? (settings?.wipLimit != null ? String(settings.wipLimit) : '')
+}
+
+function renderWipRow() {
+  const host = $('#settings-wip-row')
+  if (!host) return
+  const loading = settings === null
+  const disabled = loading || savingWip ? 'disabled' : ''
+  host.innerHTML = `
+    <div class="settings-row">
+      <div class="settings-label">WIP制限</div>
+      <div class="settings-value settings-edit">
+        <label class="settings-check"><input type="checkbox" id="settings-wip-enabled" ${wipEnabledValue() ? 'checked' : ''} ${disabled}> 有効</label>
+        <input type="number" id="settings-wip-limit" class="settings-number" value="${escapeHtml(wipLimitValue())}"
+          min="1" max="30" step="1" inputmode="numeric"
+          placeholder="${loading ? '…' : '10'}" aria-label="WIP可能数" ${disabled}>
+        <span class="settings-flag">件</span>
+      </div>
+      <button type="button" class="btn" data-action="save-wip" ${disabled}>保存</button>
+    </div>
+    <p class="field-hint">有効にすると、herdr のセッションが残っている未完了TODOが WIP可能数(1〜30件)に達した時点で、それ以上 herdr へ投入できなくなります。投入するには実行中のTODOを完了にするか削除してください。左のメニューに使用状況が表示されます。</p>`
+}
+
 function renderDialog() {
   const backdrop = $('#settings-backdrop')
   if (!open) {
@@ -138,12 +170,14 @@ function renderDialog() {
     <p class="field-hint">書き込み系のAPI(POST / PATCH / DELETE)には <code>Origin: ${escapeHtml(window.location.origin)}</code> ヘッダーが必要です。加えて、body を伴う POST / PATCH には <code>Content-Type: application/json</code> も必要です(無いと415)。</p>
     <div id="settings-upload-dir-row" class="settings-section"></div>
     <div id="settings-idle-recap-row" class="settings-section"></div>
+    <div id="settings-wip-row" class="settings-section"></div>
     <section id="settings-herdr" class="settings-section" aria-live="polite"></section>
     <div class="modal-footer">
       <button type="button" class="btn btn-ghost" data-action="close-settings">閉じる</button>
     </div>`
   renderUploadRow()
   renderIdleRow()
+  renderWipRow()
   renderHerdr()
 }
 
@@ -154,11 +188,13 @@ async function loadSettings() {
     // the request was in flight.
     if (draft === null) draft = settings.uploadDir
     if (idleDraft === null) idleDraft = String(settings.idleRecapMinutes)
+    setState({ settings })
   } catch (err) {
     toastError(err.message)
   }
   renderUploadRow()
   renderIdleRow()
+  renderWipRow()
 }
 
 export function openSettingsDialog() {
@@ -168,6 +204,8 @@ export function openSettingsDialog() {
   // reopening should show what the server actually has.
   draft = null
   idleDraft = null
+  wipEnabledDraft = null
+  wipLimitDraft = null
   renderDialog()
   void loadSettings()
   void loadHerdr()
@@ -222,6 +260,34 @@ async function saveIdleRecap() {
   }
 }
 
+async function saveWip() {
+  const input = $('#settings-wip-limit')
+  const checkbox = $('#settings-wip-enabled')
+  if (!input || !checkbox || savingWip) return
+  const limit = Number(input.value.trim())
+  if (!Number.isInteger(limit) || limit < 1 || limit > 30) {
+    toastError('WIP可能数は1〜30の整数で指定してください')
+    return
+  }
+  const enabled = checkbox.checked
+  savingWip = true
+  wipEnabledDraft = enabled
+  wipLimitDraft = String(limit)
+  renderWipRow()
+  try {
+    settings = await api.updateSettings({ wipLimitEnabled: enabled, wipLimit: limit })
+    wipEnabledDraft = null
+    wipLimitDraft = null
+    setState({ settings })
+    toast(enabled ? `WIP制限を有効にしました(${limit}件)` : 'WIP制限を無効にしました')
+  } catch (err) {
+    toastError(err.message)
+  } finally {
+    savingWip = false
+    renderWipRow()
+  }
+}
+
 function saveUploadDir() {
   const input = $('#settings-upload-dir')
   if (!input) return
@@ -266,6 +332,8 @@ function handleDialogClick(ev) {
     saveUploadDir()
   } else if (action === 'save-idle-recap') {
     void saveIdleRecap()
+  } else if (action === 'save-wip') {
+    void saveWip()
   }
 }
 
@@ -286,10 +354,13 @@ export function initSettingsDialog() {
   $('#settings-dialog').addEventListener('input', (ev) => {
     if (ev.target.id === 'settings-upload-dir') draft = ev.target.value
     if (ev.target.id === 'settings-idle-recap') idleDraft = ev.target.value
+    if (ev.target.id === 'settings-wip-limit') wipLimitDraft = ev.target.value
+    if (ev.target.id === 'settings-wip-enabled') wipEnabledDraft = ev.target.checked
   })
   $('#settings-dialog').addEventListener('keydown', (ev) => {
     if (ev.key === 'Enter' && ev.target.id === 'settings-upload-dir') saveUploadDir()
     if (ev.key === 'Enter' && ev.target.id === 'settings-idle-recap') void saveIdleRecap()
+    if (ev.key === 'Enter' && ev.target.id === 'settings-wip-limit') void saveWip()
   })
   document.addEventListener('keydown', (ev) => {
     if (ev.key === 'Escape' && open) closeDialog()

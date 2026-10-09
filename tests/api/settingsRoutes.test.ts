@@ -13,6 +13,8 @@ describe('GET /api/settings', () => {
       uploadDir: '/tmp/x/attachments',
       uploadDirIsDefault: true,
       idleRecapMinutes: 180,
+      wipLimitEnabled: false,
+      wipLimit: 10,
     })
   })
 })
@@ -27,7 +29,7 @@ describe('PATCH /api/settings', () => {
       body: JSON.stringify({ uploadDir: dir }),
     })
     expect(res.status).toBe(200)
-    expect((await readJson(res)).data).toEqual({ uploadDir: dir, uploadDirIsDefault: false, idleRecapMinutes: 180 })
+    expect((await readJson(res)).data).toEqual({ uploadDir: dir, uploadDirIsDefault: false, idleRecapMinutes: 180, wipLimitEnabled: false, wipLimit: 10 })
 
     const after = await app.request('/api/settings')
     expect((await readJson(after)).data.uploadDir).toBe(dir)
@@ -74,6 +76,8 @@ describe('PATCH /api/settings idleRecapMinutes', () => {
       uploadDir: '/tmp/x/attachments',
       uploadDirIsDefault: true,
       idleRecapMinutes: 120,
+      wipLimitEnabled: false,
+      wipLimit: 10,
     })
   })
 

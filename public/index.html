@@ -201,6 +201,23 @@ nav { display: flex; flex-direction: column; gap: 2px; }
 .sidebar-collapsed .pomo-setup,
 .sidebar-collapsed .pomo-volume { display: none; }
 .sidebar-collapsed .pomo-time { font-size: 12px; text-shadow: none; }
+/* ---------- WIP limit meter (sidebar) ---------- */
+/* Memory-style meter under the pomodoro: one ■/□ per slot, then count/limit.
+   Only rendered while the WIP limit is enabled in settings. Up to 30 cells,
+   so the glyphs shrink and wrap rather than widening the sidebar. */
+.wip {
+  display: flex; align-items: center; gap: 8px; margin: 0 2px 8px; padding: 6px 10px;
+  border: 1px solid var(--border); border-radius: var(--radius); background: var(--bg);
+  font-family: var(--mono); color: var(--done-unread);
+}
+.wip[hidden] { display: none; }
+.wip-cells { flex: 1; min-width: 0; font-size: 10px; line-height: 1.3; letter-spacing: -.02em; overflow-wrap: anywhere; }
+.wip-label { flex-shrink: 0; font-size: 11.5px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.wip.is-full { color: var(--working); }
+.wip.is-over { color: var(--blocked); }
+.sidebar-collapsed .wip { padding: 4px 2px; margin: 0 0 6px; width: 100%; justify-content: center; }
+.sidebar-collapsed .wip-cells { display: none; }
+.sidebar-collapsed .wip-label { font-size: 10.5px; }
 /* ---------- pomodoro panel (TODO detail) ---------- */
 .pomo-start-row { display: flex; align-items: center; gap: 8px; padding: 4px; }
 .pomo-start-row input {
@@ -517,6 +534,8 @@ h1 { font-size: 20px; font-weight: 700; }
 .settings-edit input:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
 .settings-edit input:disabled { color: var(--text-faint); }
 .settings-edit input.settings-number { flex: 0 0 auto; width: 90px; }
+.settings-check { display: inline-flex; align-items: center; gap: 4px; flex-shrink: 0; font-family: var(--sans); font-size: 12.5px; cursor: pointer; }
+.settings-check input { flex: none; width: auto; padding: 0; accent-color: var(--accent); }
 .settings-flag { flex-shrink: 0; font-family: var(--sans); font-size: 11px; color: var(--text-faint); }
 /* ---------- linked pull requests ---------- */
 .pr-row { display: flex; align-items: flex-start; gap: 8px; padding: 8px 4px; border-top: 1px solid var(--border); }
@@ -641,7 +660,7 @@ h1 { font-size: 20px; font-weight: 700; }
   .logo { padding: 0 8px 0 0; }
   nav { flex-direction: row; }
   .nav-btn { padding: 6px 10px; white-space: nowrap; }
-  .side-sec, .herdr-status, .pomo { display: none; }
+  .side-sec, .herdr-status, .pomo, .wip { display: none; }
   .page { padding: 18px 14px 48px; }
   .todo { grid-template-columns: 26px 1fr; }
   .todo-actions { grid-column: 2; justify-content: flex-end; }
@@ -665,6 +684,7 @@ h1 { font-size: 20px; font-weight: 700; }
     <nav aria-label="メイン">
       <button class="nav-btn" data-page="todos" aria-current="page" title="TODO"><span class="n-ico">☑</span><span class="nav-label">TODO</span><span class="nav-count" id="count-todos">–</span></button>
       <div class="pomo" id="pomodoro" data-status="idle" aria-label="ポモドーロタイマー" role="group"></div>
+      <div class="wip" id="wip-meter" role="meter" aria-label="WIP" aria-valuemin="0" hidden><span class="wip-cells" id="wip-cells"></span><span class="wip-label" id="wip-label"></span></div>
       <button class="nav-btn" data-page="milestones" title="マイルストーン"><span class="n-ico">◆</span><span class="nav-label">マイルストーン</span><span class="nav-count" id="count-ms">–</span></button>
       <button class="nav-btn" data-page="plan" title="計画"><span class="n-ico">▦</span><span class="nav-label">計画</span></button>
       <button class="nav-btn" data-page="report" title="週次レポート"><span class="n-ico">▤</span><span class="nav-label">週次レポート</span></button>

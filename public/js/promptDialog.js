@@ -7,6 +7,7 @@ import { api } from './api.js'
 import { refreshTodos, refreshWorkspaces } from './data.js'
 import { appendAttachmentPaths } from './lib/attachment.js'
 import { dispatchDisabledReason } from './lib/capabilities.js'
+import { wipBlockedReason } from './lib/wipLimit.js'
 import { shouldWarnAboutDelivery } from './lib/dispatchResult.js'
 import { buildModelDispatchPatch, needsModelResetBeforeDispatch } from './lib/modelPatch.js'
 import { buildModelSelectChoices, resolveModelSelectValue } from './lib/modelOptions.js'
@@ -164,7 +165,8 @@ function previewBlock() {
 // environment can't dispatch at all: the rest of the dialog (prompt text,
 // snippets) is still worth reading and editing even where herdr is missing.
 function submitButton() {
-  const reason = dispatchDisabledReason(getState().capabilities)
+  const { capabilities, settings, todos } = getState()
+  const reason = dispatchDisabledReason(capabilities) ?? wipBlockedReason(settings, todos)
   if (reason) {
     return `<button type="button" class="btn btn-accent" data-action="submit-dispatch" disabled title="${escapeHtml(reason)}">投入する</button>`
   }

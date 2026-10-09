@@ -3,6 +3,7 @@
 import { api } from './api.js'
 import { refreshBoth, refreshTodos, refreshWorkspaces, toggleTodoComplete } from './data.js'
 import { dispatchDisabledReason, sessionFocusDisabledReason } from './lib/capabilities.js'
+import { wipBlockedReason } from './lib/wipLimit.js'
 import { dueBadge } from './lib/dueBadge.js'
 import { shouldRestoreCapturedForm } from './lib/formCapture.js'
 import { hasOpenForm } from './lib/formGuard.js'
@@ -23,7 +24,7 @@ import { openPromptDialog } from './promptDialog.js'
 import { openWorkspaceManager } from './workspaceManager.js'
 import { activeMilestones, getState, setState } from './state.js'
 import { openTodoDetail } from './todoDetailDialog.js'
-import { $, $all, escapeHtml, toast, toastError, todayIso, twoStepConfirm, withButtonBusy } from './utils.js'
+import { $, $all, escapeHtml, toast, toastError, toastWarning, todayIso, twoStepConfirm, withButtonBusy } from './utils.js'
 
 // Which todo currently has its inline title/description edit form open.
 let editFormTodoId = null
@@ -156,7 +157,10 @@ function todoActions(todo) {
   // available regardless of whether one is saved yet — the one thing that
   // does gate it is an environment that can't dispatch at all, where it's
   // greyed out here (the entry point) as well as inside the dialog.
-  const dispatchReason = dispatchDisabledReason(getState().capabilities)
+  // A full WIP limit greys it out the same way: the slot frees up only by
+  // completing or deleting a running todo (the server refuses either way).
+  const { capabilities, settings, todos } = getState()
+  const dispatchReason = dispatchDisabledReason(capabilities) ?? wipBlockedReason(settings, todos)
   const dispatchBtn = dispatchReason
     ? `<button class="btn btn-accent" data-action="dispatch" data-id="${todo.id}" disabled title="${escapeHtml(dispatchReason)}">▶ herdrに投入</button>`
     : `<button class="btn btn-accent" data-action="dispatch" data-id="${todo.id}">▶ herdrに投入</button>`
@@ -343,7 +347,13 @@ async function deleteTodo(id) {
     toast(`「${escapeHtml(todo?.title ?? '')}」を削除しました`)
     await refreshBoth()
   } catch (err) {
-    toastError(err.message)
+    // A live herdr session blocks deletion (409): not a failure, a request
+    // to end the session first — the message says so.
+    if (err.extra?.code === 'session_alive' || err.extra?.code === 'session_unverified') {
+      toastWarning(err.message)
+    } else {
+      toastError(err.message)
+    }
   }
 }
 
