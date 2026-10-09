@@ -15,6 +15,8 @@ describe('GET /api/settings', () => {
       idleRecapMinutes: 180,
       wipLimitEnabled: false,
       wipLimit: 10,
+      notesDir: '/tmp/dot-connect-test-notes',
+      skill: { path: '/tmp/dot-connect-test-claude/skills/dot-connect/SKILL.md', state: 'not_installed' },
     })
   })
 })
@@ -29,7 +31,8 @@ describe('PATCH /api/settings', () => {
       body: JSON.stringify({ uploadDir: dir }),
     })
     expect(res.status).toBe(200)
-    expect((await readJson(res)).data).toEqual({ uploadDir: dir, uploadDirIsDefault: false, idleRecapMinutes: 180, wipLimitEnabled: false, wipLimit: 10 })
+    expect((await readJson(res)).data).toMatchObject({ uploadDir: dir, uploadDirIsDefault: false, idleRecapMinutes: 180, wipLimitEnabled: false, wipLimit: 10 })
+    // notesDir / skill are covered in skillSettings.test.ts
 
     const after = await app.request('/api/settings')
     expect((await readJson(after)).data.uploadDir).toBe(dir)
@@ -78,6 +81,8 @@ describe('PATCH /api/settings idleRecapMinutes', () => {
       idleRecapMinutes: 120,
       wipLimitEnabled: false,
       wipLimit: 10,
+      notesDir: '/tmp/dot-connect-test-notes',
+      skill: { path: '/tmp/dot-connect-test-claude/skills/dot-connect/SKILL.md', state: 'not_installed' },
     })
   })
 

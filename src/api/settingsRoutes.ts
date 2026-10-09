@@ -3,6 +3,8 @@ import { Hono } from 'hono'
 import * as appSettingsRepo from '../db/appSettingsRepo'
 import { IDLE_RECAP_MINUTES_KEY, resolveIdleRecapMinutes } from '../services/idleRecapService'
 import { UPLOAD_DIR_KEY, resolveUploadDir, validateUploadDir } from '../services/uploadDirService'
+import { installSkill, skillStatus, type SkillStatus } from '../services/skillInstallService'
+import { openNotesDirInFinder } from '../services/skillNotesService'
 import { WIP_LIMIT_ENABLED_KEY, WIP_LIMIT_KEY, resolveWipLimit } from '../services/wipLimitService'
 import type { AppDependencies } from './dependencies'
 import { fail, handle, ok } from './response'
@@ -15,6 +17,8 @@ interface SettingsResponse {
   idleRecapMinutes: number
   wipLimitEnabled: boolean
   wipLimit: number
+  notesDir: string
+  skill: SkillStatus
 }
 
 function settingsResponse(deps: AppDependencies): SettingsResponse {
@@ -26,6 +30,8 @@ function settingsResponse(deps: AppDependencies): SettingsResponse {
     idleRecapMinutes: resolveIdleRecapMinutes(deps.db),
     wipLimitEnabled: wip.enabled,
     wipLimit: wip.limit,
+    notesDir: deps.notesDir,
+    skill: skillStatus(deps.claudeSkillsDir),
   }
 }
 
@@ -67,6 +73,15 @@ export function createSettingsRoutes(deps: AppDependencies): Hono {
 
   app.get('/', getSettingsHandler(deps))
   app.patch('/', updateSettingsHandler(deps))
+  app.post('/notes-dir/open', (c) =>
+    handle(c, async () => {
+      await openNotesDirInFinder(deps.notesDir, deps.platform, deps.exec)
+      return ok(c, { opened: true })
+    })
+  )
+  app.post('/skill/install', (c) =>
+    handle(c, async () => ok(c, installSkill(deps.claudeSkillsDir)))
+  )
 
   return app
 }

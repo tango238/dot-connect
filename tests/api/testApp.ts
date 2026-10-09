@@ -189,6 +189,8 @@ export function createRawTestApp(overrides: Partial<AppDependencies> = {}): RawT
     isLoopback: true,
     allowedModels: ['opus', 'sonnet', 'haiku', 'fable', 'codex'],
     mcpBinPath: null,
+    notesDir: '/tmp/dot-connect-test-notes',
+    claudeSkillsDir: '/tmp/dot-connect-test-claude/skills',
     capabilities: async () => ({ dispatch: true, sessionFocus: true, mcpBinPath: null }),
     dispatchAgentReadyTimeoutMs: 100,
     dispatchPollIntervalMs: 1,

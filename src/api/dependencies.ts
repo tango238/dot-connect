@@ -31,6 +31,9 @@ export interface AppDependencies {
   // null when none is configured — surfaced read-only via GET /api/capabilities
   // so the frontend can show the right MCP registration command.
   readonly mcpBinPath: string | null
+  // See Config.notesDir / Config.claudeSkillsDir.
+  readonly notesDir: string
+  readonly claudeSkillsDir: string
   // Detects herdr/claude availability for the current platform. Called
   // lazily and cached by the caller (see server.ts's buildDependencies) so
   // the `which` probes only ever run once per process.

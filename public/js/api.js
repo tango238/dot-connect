@@ -106,6 +106,11 @@ export const api = {
   // `error` is the specific Japanese reason — worth surfacing verbatim.
   getSettings: () => request('GET', '/api/settings'),
   updateSettings: (patch) => request('PATCH', '/api/settings', patch),
+  // Opens the dot-connect skill's notes folder in Finder (macOS only).
+  openNotesDir: () => request('POST', '/api/settings/notes-dir/open'),
+  // Writes the bundled dot-connect skill to ~/.claude/skills; returns
+  // `{ path, state }` like GET /api/settings' `skill`.
+  installSkill: () => request('POST', '/api/settings/skill/install'),
 
   getLatestReport: () => request('GET', '/api/reports/weekly/latest'),
   getReportByWeek: (weekStart) =>

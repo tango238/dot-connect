@@ -31,6 +31,8 @@ let savingIdle = false
 let wipEnabledDraft = null
 let wipLimitDraft = null
 let savingWip = false
+let openingNotes = false
+let installingSkill = false
 let herdrInfo = null
 let checkingHerdr = false
 let herdrError = ''
@@ -153,6 +155,65 @@ function renderWipRow() {
     <p class="field-hint">有効にすると、herdr のセッションが残っている未完了TODOが WIP可能数(1〜30件)に達した時点で、それ以上 herdr へ投入できなくなります。投入するには実行中のTODOを完了にするか削除してください。左のメニューに使用状況が表示されます。</p>`
 }
 
+const SKILL_STATE_TEXT = {
+  not_installed: '未インストール',
+  installed: 'インストール済み(最新)',
+  outdated: '同梱版と内容が異なります',
+}
+
+// The dot-connect skill (TODO decomposition for Claude Code) and the notes
+// it learns from. Both buttons act immediately; nothing here is a draft.
+function renderSkillRow() {
+  const host = $('#settings-skill-row')
+  if (!host) return
+  const loading = settings === null
+  const skill = settings?.skill
+  const installLabel = installingSkill ? 'インストール中…' : skill?.state === 'not_installed' ? 'インストール' : '再インストール'
+  host.innerHTML = `
+    <div class="settings-row">
+      <div class="settings-label">dot-connect スキル</div>
+      <div class="settings-value" title="${escapeHtml(skill?.path ?? '')}">${loading ? '…' : escapeHtml(SKILL_STATE_TEXT[skill.state] ?? skill.state)}</div>
+      <button type="button" class="btn" data-action="install-skill" ${loading || installingSkill ? 'disabled' : ''}>${installLabel}</button>
+    </div>
+    <p class="field-hint">Claude Code 用のスキルを <code>${escapeHtml(skill?.path ?? '~/.claude/skills/dot-connect/SKILL.md')}</code> に書き出します。依頼文を TODO に分解し、モデルと作業ディレクトリを提案して、承認後に dot-connect へ登録します。${skill?.state === 'outdated' ? '<br>再インストールすると、手で編集した内容は同梱版で上書きされます。' : ''}</p>
+    <div class="settings-row">
+      <div class="settings-label">スキルの記録</div>
+      <div class="settings-value">${escapeHtml(settings?.notesDir ?? '…')}</div>
+      <button type="button" class="btn" data-action="open-notes-dir" ${loading || openingNotes ? 'disabled' : ''}>Finderで開く</button>
+    </div>
+    <p class="field-hint">スキルがモデル・作業ディレクトリを決めるときに読む記録(<code>workspaces.md</code> / <code>models.md</code> / <code>history.md</code>)です。テキストを直接編集すると次回の提案に反映されます。</p>`
+}
+
+async function installSkillNow() {
+  if (installingSkill) return
+  installingSkill = true
+  renderSkillRow()
+  try {
+    const skill = await api.installSkill()
+    settings = { ...settings, skill }
+    toast('dot-connect スキルをインストールしました。Claude Code で使えます')
+  } catch (err) {
+    toastError(err.message)
+  } finally {
+    installingSkill = false
+    renderSkillRow()
+  }
+}
+
+async function openNotesDir() {
+  if (openingNotes) return
+  openingNotes = true
+  renderSkillRow()
+  try {
+    await api.openNotesDir()
+  } catch (err) {
+    toastError(err.message)
+  } finally {
+    openingNotes = false
+    renderSkillRow()
+  }
+}
+
 function renderDialog() {
   const backdrop = $('#settings-backdrop')
   if (!open) {
@@ -171,6 +232,7 @@ function renderDialog() {
     <div id="settings-upload-dir-row" class="settings-section"></div>
     <div id="settings-idle-recap-row" class="settings-section"></div>
     <div id="settings-wip-row" class="settings-section"></div>
+    <div id="settings-skill-row" class="settings-section"></div>
     <section id="settings-herdr" class="settings-section" aria-live="polite"></section>
     <div class="modal-footer">
       <button type="button" class="btn btn-ghost" data-action="close-settings">閉じる</button>
@@ -178,6 +240,7 @@ function renderDialog() {
   renderUploadRow()
   renderIdleRow()
   renderWipRow()
+  renderSkillRow()
   renderHerdr()
 }
 
@@ -195,6 +258,7 @@ async function loadSettings() {
   renderUploadRow()
   renderIdleRow()
   renderWipRow()
+  renderSkillRow()
 }
 
 export function openSettingsDialog() {
@@ -334,6 +398,10 @@ function handleDialogClick(ev) {
     void saveIdleRecap()
   } else if (action === 'save-wip') {
     void saveWip()
+  } else if (action === 'install-skill') {
+    void installSkillNow()
+  } else if (action === 'open-notes-dir') {
+    void openNotesDir()
   }
 }
 

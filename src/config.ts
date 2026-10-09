@@ -1,4 +1,5 @@
-import { isAbsolute, resolve } from 'node:path'
+import { homedir } from 'node:os'
+import { isAbsolute, join, resolve } from 'node:path'
 import { DEFAULT_HERDR_CHECK_INTERVAL_MS } from './herdr/compatibility'
 import { logger } from './logger'
 import { parseAllowedModels } from './services/modelValidation'
@@ -25,6 +26,12 @@ export interface Config {
   readonly staticDir: string
   readonly desktopMode: boolean
   readonly mcpBinPath: string | null
+  // Plain-text notes the dot-connect skill reads and appends to (see
+  // skillNotesService.ts). Opened from the settings dialog in Finder.
+  readonly notesDir: string
+  // Where the settings dialog installs the dot-connect skill:
+  // <CLAUDE_CONFIG_DIR or ~/.claude>/skills.
+  readonly claudeSkillsDir: string
 }
 
 // This file lives at <repo root>/src/config.ts, so its own directory is a
@@ -129,6 +136,8 @@ function readConfig(env: NodeJS.ProcessEnv): Config {
     staticDir: resolveStaticDir(env.STATIC_DIR),
     desktopMode: env.DOT_CONNECT_DESKTOP === '1',
     mcpBinPath: readOptionalString(env.DOT_CONNECT_MCP_BIN),
+    notesDir: resolve(readOptionalString(env.DOT_CONNECT_NOTES_DIR) ?? join(homedir(), '.local', 'dot-connect', 'notes')),
+    claudeSkillsDir: join(resolve(readOptionalString(env.CLAUDE_CONFIG_DIR) ?? join(homedir(), '.claude')), 'skills'),
   }
 }
 

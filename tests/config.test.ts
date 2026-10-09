@@ -1,4 +1,5 @@
 import { describe, expect, test } from 'bun:test'
+import { homedir } from 'node:os'
 import { isAbsolute, join, resolve } from 'node:path'
 import { isLoopbackHost, loadConfig } from '../src/config'
 
@@ -48,6 +49,8 @@ describe('loadConfig', () => {
       TERMINAL_APP: 'iTerm',
       HOST: '127.0.0.1',
       DOT_CONNECT_API_TOKEN: 'secret-token',
+      DOT_CONNECT_NOTES_DIR: '/tmp/notes',
+      CLAUDE_CONFIG_DIR: '/tmp/claude',
     })
     expect(config).toEqual({
       port: 8080,
@@ -64,7 +67,15 @@ describe('loadConfig', () => {
       staticDir: resolve(PROJECT_ROOT, 'public'),
       desktopMode: false,
       mcpBinPath: null,
+      notesDir: '/tmp/notes',
+      claudeSkillsDir: '/tmp/claude/skills',
     })
+  })
+
+  test('notesDir / claudeSkillsDir default under the home directory', () => {
+    const config = loadConfig({})
+    expect(config.notesDir).toBe(join(homedir(), '.local', 'dot-connect', 'notes'))
+    expect(config.claudeSkillsDir).toBe(join(homedir(), '.claude', 'skills'))
   })
 
   test('throws for a non-numeric PORT', () => {

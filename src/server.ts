@@ -41,6 +41,8 @@ export function buildDependencies(): AppDependencies {
     isLoopback: isLoopbackHost(config.host),
     allowedModels: config.allowedModels,
     mcpBinPath: config.mcpBinPath,
+    notesDir: config.notesDir,
+    claudeSkillsDir: config.claudeSkillsDir,
     capabilities: () =>
       (cachedCapabilities ??= detectCapabilities(spawnExec, {
         platform: process.platform,

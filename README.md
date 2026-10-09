@@ -69,6 +69,8 @@ bun run src/server.ts   # http://localhost:5757
 | `STATIC_DIR` | `<リポジトリルート>/public`(絶対パス) | 静的フロントエンドの配信元。相対パスはリポジトリルート基準で絶対化される |
 | `DOT_CONNECT_DESKTOP` | (未設定) | デスクトップアプリのシェルがサイドカー起動時に設定する。stdinのEOFで自己終了するようになるため、通常は手で設定しない |
 | `DOT_CONNECT_MCP_BIN` | (未設定) | 同梱MCPサーバーのバイナリパス。デスクトップアプリのシェルが設定し、設定ダイアログの「MCP登録コマンド」に使われる |
+| `DOT_CONNECT_NOTES_DIR` | `~/.local/dot-connect/notes` | dot-connect スキルの記録ファイル(`workspaces.md` / `models.md` / `history.md`)の置き場所 |
+| `CLAUDE_CONFIG_DIR` | `~/.claude` | 設定ダイアログからスキルをインストールする先(`<ここ>/skills/dot-connect/SKILL.md`) |
 
 `DB_PATH` の既定値はカレントディレクトリに依存しない絶対パスに解決される
 (`src/config.ts` 自身のファイル位置からリポジトリルートを求め、そこからの
@@ -164,6 +166,19 @@ API/MCP経由の変更をHerdrセッションの有無に関係なく一覧と�
 編集フォームやダイアログを開いている間は入力保護のため反映を保留し、閉じた
 後に最新状態を取得する。切断後の再接続時にも再取得する。この通知経路は
 ローカルUI専用で、APIトークンの許可リストには含めない。
+
+## Claude Code スキル(dot-connect)
+
+`skills/dot-connect/SKILL.md` は、依頼文を複数のTODOに分解して dot-connect に
+登録する Claude Code スキル。タイトル・詳細・LLMモデル・作業ディレクトリを提案し、
+ユーザーが承認してから登録する(MCP が登録されていれば MCP、無ければ HTTP API を使う)。
+
+- **インストール**: 設定ダイアログの「dot-connect スキル」→「インストール」。
+  `~/.claude/skills/dot-connect/SKILL.md` に書き出される(サーバーに埋め込んだ同梱版)。
+- **記録**: スキルは `~/.local/dot-connect/notes/` の `workspaces.md`(作業ディレクトリの
+  使い分け)・`models.md`(モデルの選び方)を読んで提案し、登録結果を `history.md` に追記、
+  ユーザーが直したモデル/ディレクトリはルールとして書き足す。設定ダイアログの
+  「Finderで開く」で開いて直接編集できる(macOS のみ)。
 
 ## MCPサーバー
 
