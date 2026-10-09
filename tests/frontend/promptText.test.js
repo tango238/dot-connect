@@ -1,6 +1,7 @@
 import { describe, expect, test } from 'bun:test'
 import {
   appendAtEnd,
+  defaultPromptText,
   insertAtCursor,
   resolveInsertionPoint,
   truncatePreview,
@@ -90,5 +91,16 @@ describe('resolveInsertionPoint', () => {
 
   test('leaves a genuine non-zero selection range untouched', () => {
     expect(resolveInsertionPoint('hello world', 0, 5)).toEqual({ start: 0, end: 5 })
+  })
+})
+
+describe('defaultPromptText', () => {
+  test('タイトル、空行、詳細の順', () => {
+    expect(defaultPromptText({ title: 'T', description: '  詳細\n' })).toBe('T\n\n詳細')
+  })
+
+  test('詳細が空ならタイトルだけ', () => {
+    expect(defaultPromptText({ title: 'T', description: '  ' })).toBe('T')
+    expect(defaultPromptText({ title: 'T', description: null })).toBe('T')
   })
 })

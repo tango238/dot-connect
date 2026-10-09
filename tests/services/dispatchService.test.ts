@@ -105,6 +105,22 @@ describe('dispatchTodo', () => {
     expect(client.createWorkspaceCalls).toEqual([])
   })
 
+  describe('default prompt (no custom prompt given)', () => {
+    test('sends the title, a blank line, then the description', async () => {
+      const todo = todoRepo.create(db, { title: 'Fix login', description: '  Session expires too early.\n' , workspacePath: '/tmp' })
+      const client = fakeClient({ workspaceId: 'w1', tabId: 'w1:t1', paneId: 'w1:p1' })
+      await dispatchTodo(db, client, todo.id, { claudeBin: 'claude', sleep: noSleep })
+      expect(client.submitPromptCalls[0]?.text).toBe('Fix login\n\nSession expires too early.')
+    })
+
+    test('sends just the title when there is no description', async () => {
+      const todo = todoRepo.create(db, { title: 'Fix login', workspacePath: '/tmp' })
+      const client = fakeClient({ workspaceId: 'w1', tabId: 'w1:t1', paneId: 'w1:p1' })
+      await dispatchTodo(db, client, todo.id, { claudeBin: 'claude', sleep: noSleep })
+      expect(client.submitPromptCalls[0]?.text).toBe('Fix login')
+    })
+  })
+
   describe('workspacePath resolution at dispatch time', () => {
     test('a dispatch-time workspacePath is used for the herdr workspace and persisted onto the todo', async () => {
       const todo = todoRepo.create(db, { title: 'x', workspacePath: '/tmp/old' })

@@ -1,5 +1,13 @@
 // Pure text helpers for the prompt-dispatch dialog — no DOM.
 
+/** The dispatch dialog's initial prompt: the title, then the description
+ * (when there is one) after a blank line. Mirrors defaultTaskPrompt in
+ * dispatchService.ts, which a dispatch without a prompt falls back to. */
+export function defaultPromptText(todo) {
+  const description = (todo.description ?? '').trim()
+  return description ? `${todo.title}\n\n${description}` : todo.title
+}
+
 /** Collapses whitespace/newlines to single spaces and truncates for a
  * one-line list preview (history entries, snippet bodies). */
 export function truncatePreview(text, maxLen = 50) {

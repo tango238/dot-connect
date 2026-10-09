@@ -94,10 +94,18 @@ function substitutePlaceholders(template: string, todo: Todo): string {
   )
 }
 
+// What a dispatch without a custom prompt sends: the title, then the
+// description (when there is one) after a blank line. The dialog prefills
+// the same text (public/js/lib/promptText.js defaultPromptText).
+function defaultTaskPrompt(todo: Todo): string {
+  const description = todo.description.trim()
+  return description ? `${todo.title}\n\n${description}` : todo.title
+}
+
 function buildTaskPrompt(todo: Todo, promptBody?: string): string {
-  // A custom prompt gets {{title}}/{{description}} substitution; a
-  // title-only dispatch has nothing to substitute into.
-  const rawBody = promptBody !== undefined ? substitutePlaceholders(promptBody, todo) : todo.title
+  // A custom prompt gets {{title}}/{{description}} substitution; the default
+  // prompt is already the literal title/description, nothing to substitute.
+  const rawBody = promptBody !== undefined ? substitutePlaceholders(promptBody, todo) : defaultTaskPrompt(todo)
   const prompt = rawBody
   if (prompt.length > MAX_TASK_PROMPT_LENGTH) {
     throw new BadRequestError('プロンプトが長すぎます')

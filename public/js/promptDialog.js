@@ -12,7 +12,7 @@ import { shouldWarnAboutDelivery } from './lib/dispatchResult.js'
 import { buildModelDispatchPatch, needsModelResetBeforeDispatch } from './lib/modelPatch.js'
 import { buildModelSelectChoices, resolveModelSelectValue } from './lib/modelOptions.js'
 import { renderPromptPreview } from './lib/promptPreview.js'
-import { appendAtEnd, insertAtCursor, resolveInsertionPoint, truncatePreview } from './lib/promptText.js'
+import { appendAtEnd, defaultPromptText, insertAtCursor, resolveInsertionPoint, truncatePreview } from './lib/promptText.js'
 import { isSettingsDialogOpen } from './settingsDialog.js'
 import { isSnippetManagerOpen, openSnippetManager } from './snippetManager.js'
 import { getState } from './state.js'
@@ -222,7 +222,7 @@ function renderDialog() {
 
 export function openPromptDialog(todo) {
   dialogTodo = todo
-  promptValue = todo.title
+  promptValue = defaultPromptText(todo)
   workspacePathValue = todo.workspacePath ?? ''
   modelValue = resolveModelSelectValue(todo.model, getState().models)
   snippetPanelOpen = false
