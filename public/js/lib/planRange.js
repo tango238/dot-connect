@@ -14,17 +14,20 @@ export function hasValidRange(m) {
   return !Number.isNaN(start.getTime()) && !Number.isNaN(end.getTime())
 }
 
-/** Date range spanning every milestone (+ today), with a one-week margin on
- * each side. Callers must pre-filter with hasValidRange(). */
-export function computeRange(milestones, todayStr) {
+/** Date range spanning every milestone and every extra date (TODO due
+ * dates), plus today, with a one-week margin on each side. Callers must
+ * pre-filter milestones with hasValidRange() and pass only valid YYYY-MM-DD
+ * strings in `extraDates`. */
+export function computeRange(milestones, todayStr, extraDates = []) {
   const today = new Date(`${todayStr}T00:00:00Z`)
-  if (milestones.length === 0) {
+  const extras = extraDates.map((d) => new Date(`${d}T00:00:00Z`).getTime())
+  if (milestones.length === 0 && extras.length === 0) {
     return { start: new Date(today.getTime() - WEEK_MS), end: new Date(today.getTime() + 3 * WEEK_MS) }
   }
   const starts = milestones.map((m) => new Date(`${m.startDate}T00:00:00Z`).getTime())
   const ends = milestones.map((m) => new Date(`${m.targetDate}T00:00:00Z`).getTime())
-  const minStart = Math.min(...starts, today.getTime())
-  const maxEnd = Math.max(...ends, today.getTime())
+  const minStart = Math.min(...starts, ...extras, today.getTime())
+  const maxEnd = Math.max(...ends, ...extras, today.getTime())
   return { start: new Date(minStart - WEEK_MS), end: new Date(maxEnd + WEEK_MS) }
 }
 

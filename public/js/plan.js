@@ -1,8 +1,12 @@
 // Plan page: a week-scale timeline of milestones, ranged dynamically from
-// their start/target dates (with a one-week margin on each side).
+// their start/target dates (with a one-week margin on each side). TODOs that
+// carry a due date are listed under their milestone as a marker on that day;
+// due-dated TODOs with no milestone form a trailing 「マイルストーンなし」 group.
 
 import { computeRange, hasValidRange, posPct } from './lib/planRange.js'
+import { dueTodos, groupDueTodosByMilestone } from './lib/planTodos.js'
 import { getState } from './state.js'
+import { openTodoDetail } from './todoDetailDialog.js'
 import { $, escapeHtml, formatMonthDay, todayIso } from './utils.js'
 
 const WEEK_MS = 7 * 24 * 60 * 60 * 1000
@@ -17,6 +21,13 @@ function weekTicks(start, end) {
     cursor = new Date(cursor.getTime() + WEEK_MS)
   }
   return ticks
+}
+
+function statusIcon(todo) {
+  if (todo.status === 'done') return '✔'
+  if (todo.sessionState === 'working') return '▶'
+  if (todo.sessionState === 'blocked') return '⏸'
+  return '○'
 }
 
 function planRow(m, start, end, today) {
@@ -39,6 +50,29 @@ function planRow(m, start, end, today) {
   </div>`
 }
 
+function todoRow(t, start, end, today, color) {
+  const done = t.status === 'done'
+  const late = !done && t.dueDate < today
+  const left = posPct(t.dueDate, start, end)
+  return `<div class="plan-row plan-todo-row ${done ? 'd' : ''}" data-action="open-todo-detail" data-id="${t.id}" title="クリックで詳細を表示">
+    <div class="plan-label">
+      <div class="pl-todo"><span class="st">${statusIcon(t)}</span><span class="todo-id">#${t.id}</span> ${escapeHtml(t.title)}</div>
+      <div class="pl-meta ${late ? 'late' : ''}">期日 ${formatMonthDay(t.dueDate)}${late ? ' · 期限超過' : ''}</div>
+    </div>
+    <div class="plan-track">
+      <span class="plan-due ${late ? 'late' : ''}" style="left:${left}%;${color ? `background:${escapeHtml(color)}` : ''}"></span>
+    </div>
+  </div>`
+}
+
+function todoRows(todos, start, end, today, color) {
+  return todos.map((t) => todoRow(t, start, end, today, color)).join('')
+}
+
+function groupHead(title) {
+  return `<div class="plan-row plan-group-row"><div class="plan-label"><div class="pl-name">${title}</div></div><div class="plan-track"></div></div>`
+}
+
 function invalidDatesNote(excludedCount) {
   if (excludedCount === 0) return ''
   return `<p class="plan-invalid-note">${excludedCount}件のマイルストーンは日付が不正なため表示できません。</p>`
@@ -49,7 +83,8 @@ export function renderPlan() {
   const milestones = allMilestones.filter(hasValidRange)
   const excludedCount = allMilestones.length - milestones.length
   const today = todayIso()
-  const { start, end } = computeRange(milestones, today)
+  const todos = dueTodos(getState().todos)
+  const { start, end } = computeRange(milestones, today, todos.map((t) => t.dueDate))
 
   $('#plan-range').textContent = `${start.toISOString().slice(0, 10)} 〜 ${end.toISOString().slice(0, 10)}`
   $('#plan-weeks').innerHTML = weekTicks(start, end)
@@ -57,12 +92,12 @@ export function renderPlan() {
     .join('')
   $('#plan-invalid-note').innerHTML = invalidDatesNote(excludedCount)
 
-  if (milestones.length === 0) {
+  if (milestones.length === 0 && todos.length === 0) {
     // Only claim "nothing planned yet" when that's actually true — if every
     // milestone was excluded for bad dates, the note above already explains
     // why the timeline is empty (F34).
     $('#plan-body').innerHTML =
-      excludedCount === 0 ? `<p class="plan-empty">マイルストーンがまだありません。</p>` : ''
+      excludedCount === 0 ? `<p class="plan-empty">マイルストーンや期日付きTODOがまだありません。</p>` : ''
     $('#plan-legend').innerHTML = ''
     return
   }
@@ -70,20 +105,31 @@ export function renderPlan() {
   const rows = [...milestones].sort(
     (a, b) => Number(a.status === 'done') - Number(b.status === 'done') || (a.targetDate < b.targetDate ? -1 : 1)
   )
+  // TODOs whose milestone was excluded for bad dates have no row to sit
+  // under, so they fall into the trailing group rather than disappearing.
+  const groups = groupDueTodosByMilestone(todos, milestones)
+  const unassigned = groups.get(null) ?? []
   const todayPct = posPct(today, start, end)
   $('#plan-body').innerHTML =
-    rows.map((m) => planRow(m, start, end, today)).join('') +
+    rows.map((m) => planRow(m, start, end, today) + todoRows(groups.get(m.id) ?? [], start, end, today, m.color)).join('') +
+    (unassigned.length ? groupHead('マイルストーンなし') + todoRows(unassigned, start, end, today, null) : '') +
     `<div class="plan-today" style="left: calc(200px + (100% - 200px) * ${todayPct / 100})"></div>`
 
   $('#plan-legend').innerHTML = `
     <span><i style="background:var(--ms-a)"></i> 進捗(完了TODO率)</span>
     <span><i style="background:var(--bg-hover);border:1px solid var(--border)"></i> 計画期間</span>
+    <span><i class="pl-due-sample"></i> TODOの期日</span>
     <span><i class="pl-today"></i> 今日 (${formatMonthDay(today)})</span>
     <span style="color:var(--blocked)">期限超過は赤表示</span>`
 }
 
 export function initPlan() {
   $('#plan-body').addEventListener('click', (ev) => {
+    const todo = ev.target.closest('[data-action="open-todo-detail"]')
+    if (todo) {
+      openTodoDetail(Number(todo.dataset.id))
+      return
+    }
     if (ev.target.closest('[data-action="goto-milestones"]')) {
       document.querySelector('[data-page="milestones"]').click()
     }
