@@ -137,7 +137,7 @@ nav { display: flex; flex-direction: column; gap: 2px; }
 .sidebar-collapsed .herdr-status .hs-row + .hs-row { margin-top: 0; }
 
 /* ---------- pomodoro timer (sidebar) ---------- */
-/* One-shot focus timer under the TODO nav item. Big blocky digits in the
+/* One-shot focus timer above the TODO nav item. Big blocky digits in the
    "working" yellow; the 10-cell bar fills as time elapses. Stays on system
    mono fonts (no webfont) like the rest of the UI. */
 .pomo {
@@ -702,8 +702,8 @@ h1 { font-size: 20px; font-weight: 700; }
     <button class="sidebar-toggle" id="sidebar-toggle" type="button" aria-expanded="true">«</button>
     <div class="logo"><div class="logo-dot"></div><div class="logo-name">dot<span>-</span>connect</div></div>
     <nav aria-label="メイン">
-      <button class="nav-btn" data-page="todos" aria-current="page" title="TODO"><span class="n-ico">☑</span><span class="nav-label">TODO</span><span class="nav-count" id="count-todos">–</span></button>
       <div class="pomo" id="pomodoro" data-status="idle" aria-label="ポモドーロタイマー" role="group"></div>
+      <button class="nav-btn" data-page="todos" aria-current="page" title="TODO"><span class="n-ico">☑</span><span class="nav-label">TODO</span><span class="nav-count" id="count-todos">–</span></button>
       <div class="wip" id="wip-meter" role="meter" aria-label="WIP" aria-valuemin="0" hidden><span class="wip-cells" id="wip-cells"></span><span class="wip-label" id="wip-label"></span></div>
       <button class="nav-btn" data-page="plan" title="計画"><span class="n-ico">▦</span><span class="nav-label">計画</span></button>
       <button class="nav-btn" data-page="milestones" title="マイルストーン"><span class="n-ico">◆</span><span class="nav-label">マイルストーン</span><span class="nav-count" id="count-ms">–</span></button>
