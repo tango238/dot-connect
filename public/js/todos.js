@@ -5,6 +5,7 @@ import { refreshBoth, refreshTodos, refreshWorkspaces, toggleTodoComplete } from
 import { dispatchDisabledReason, sessionFocusDisabledReason } from './lib/capabilities.js'
 import { wipBlockedReason } from './lib/wipLimit.js'
 import { grillButton } from './lib/grill.js'
+import { newTodoMenuItems } from './lib/newTodoMenu.js'
 import { dueBadge } from './lib/dueBadge.js'
 import { shouldRestoreCapturedForm } from './lib/formCapture.js'
 import { modelBadge } from './lib/modelBadge.js'
@@ -18,7 +19,7 @@ import { groupByRecentActivity } from './lib/todoActivity.js'
 import { sortActiveTodos } from './lib/todoOrder.js'
 import { buildWorkspaceDatalistOptions } from './lib/workspaceOptions.js'
 import { buildWorkspacePathCreatePatch } from './lib/workspacePathPatch.js'
-import { openLinkMenu } from './linkMenu.js'
+import { openActionMenu, openLinkMenu } from './linkMenu.js'
 import { openPromptDialog } from './promptDialog.js'
 import { openWorkspaceManager } from './workspaceManager.js'
 import { activeMilestones, getState, setState } from './state.js'
@@ -324,6 +325,21 @@ async function grillTodo(id) {
   }
 }
 
+// 「プロンプトから複数登録」: /dot-connect まで打ち込んだ Claude Code の
+// セッションを開く。依頼文はユーザーがそのセッションで続けて入力する。
+async function startSkillSession() {
+  try {
+    await api.startSkillSession()
+    toast('herdr に Claude Code を開きました。続けて依頼文を入力してください')
+  } catch (err) {
+    if (err.extra?.code === 'skill_not_installed') {
+      toastWarning(err.message)
+    } else {
+      toastError(err.message)
+    }
+  }
+}
+
 // The server waits (up to ~90 s) for the interview's result file, so the
 // caller keeps the button busy for the duration.
 async function finishGrill(id) {
@@ -512,10 +528,32 @@ export function initTodos() {
     })
   })
 
-  $('#new-todo-toggle').addEventListener('click', () => {
+  // 新規TODO は2通り: フォームで1件登録するか、/dot-connect スキルの
+  // セッションを開いて依頼文から複数まとめて登録するか。フォームが開いて
+  // いるときは、ボタンはそれを閉じるだけ。
+  $('#new-todo-toggle').addEventListener('click', (ev) => {
     const form = $('#new-todo-form')
-    form.hidden = !form.hidden
-    if (!form.hidden) renderNewTodoForm()
+    if (!form.hidden) {
+      form.hidden = true
+      return
+    }
+    // onSelect はメニューのクリックで後から呼ばれ、その時点では
+    // ev.currentTarget は null に戻っている。ボタンはここで掴んでおく。
+    const toggleBtn = ev.currentTarget
+    const { capabilities, settings } = getState()
+    openActionMenu({
+      ev,
+      headerLabel: '新規TODOの作り方',
+      items: newTodoMenuItems({ capabilities, settings }),
+      onSelect: (action) => {
+        if (action === 'form') {
+          form.hidden = false
+          renderNewTodoForm()
+        } else if (action === 'skill-session') {
+          void withButtonBusy(toggleBtn, startSkillSession)
+        }
+      },
+    })
   })
 
   $('#new-todo-form').addEventListener('click', (ev) => {

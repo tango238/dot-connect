@@ -197,6 +197,31 @@ describe('herdrClient.sendKeys', () => {
   })
 })
 
+describe('herdrClient.sendText', () => {
+  test('types literal text via herdr pane send-text, preserving a trailing space', async () => {
+    const exec = fakeExec((cmd) => {
+      expect(cmd).toEqual(['herdr', 'pane', 'send-text', 'w9:p1', '/dot-connect '])
+      return voidSuccess()
+    })
+    const client = createHerdrClient(exec, 'herdr')
+    await expect(client.sendText('w9:p1', '/dot-connect ')).resolves.toBeUndefined()
+  })
+
+  test('rejects text herdr would read as a reserved global option', async () => {
+    const exec = fakeExec(() => {
+      throw new Error('must not reach herdr')
+    })
+    const client = createHerdrClient(exec, 'herdr')
+    await expect(client.sendText('w9:p1', '--session')).rejects.toThrow(/予約オプション/)
+  })
+
+  test('propagates herdr errors', async () => {
+    const exec: ExecFn = async () => ({ stdout: '', stderr: 'pane not found', exitCode: 1 })
+    const client = createHerdrClient(exec, 'herdr')
+    await expect(client.sendText('bad', 'x')).rejects.toThrow(/pane not found/)
+  })
+})
+
 // Confirmed against real herdr: unlike api/snapshot and workspace/create,
 // `pane read` prints the pane's LITERAL text content on stdout — it is NOT
 // a JSON envelope. An earlier version of readPane assumed the JSON-envelope

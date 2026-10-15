@@ -25,13 +25,17 @@ export async function openSession(
   }
 
   await herdr.focusTab(todo.herdrTabId)
-
-  if (options.terminalApp !== null) {
-    await options.exec(
-      ['osascript', '-e', `tell application "${options.terminalApp}" to activate`],
-      { timeoutMs: 5000 }
-    )
-  }
+  await activateTerminal(options)
 
   return todo
+}
+
+// herdr のタブにフォーカスしても、ターミナルアプリ自体が前に出るわけでは
+// ないので、設定があればアプリを activate する。
+export async function activateTerminal(options: OpenSessionOptions): Promise<void> {
+  if (options.terminalApp === null) return
+  await options.exec(
+    ['osascript', '-e', `tell application "${options.terminalApp}" to activate`],
+    { timeoutMs: 5000 }
+  )
 }

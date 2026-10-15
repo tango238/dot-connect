@@ -68,6 +68,7 @@ function fakeClient(created: CreatedWorkspace): RecordedClient {
       }
     },
     async sendKeys(paneId, ...keys) { client.sendKeysCalls.push({ paneId, keys }) },
+    async sendText() {},
     async readPane(paneId) { client.readPaneCalls.push(paneId); return '' },
     async focusTab() {},
     async closeWorkspace(workspaceId) { client.closeWorkspaceCalls.push(workspaceId) },

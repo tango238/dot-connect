@@ -12,6 +12,7 @@ export interface FakeHerdrClient extends HerdrClient {
   readonly runInPaneCalls: { paneId: string; command: string }[]
   readonly submitPromptCalls: { paneId: string; text: string }[]
   readonly sendKeysCalls: { paneId: string; keys: string[] }[]
+  readonly sendTextCalls: { paneId: string; text: string }[]
   readonly readPaneCalls: string[]
   readonly focusTabCalls: string[]
   readonly closeWorkspaceCalls: string[]
@@ -56,6 +57,7 @@ export function createFakeHerdrClient(): FakeHerdrClient {
   const runInPaneCalls: { paneId: string; command: string }[] = []
   const submitPromptCalls: { paneId: string; text: string }[] = []
   const sendKeysCalls: { paneId: string; keys: string[] }[] = []
+  const sendTextCalls: { paneId: string; text: string }[] = []
   const readPaneCalls: string[] = []
   const focusTabCalls: string[] = []
   const closeWorkspaceCalls: string[] = []
@@ -66,6 +68,7 @@ export function createFakeHerdrClient(): FakeHerdrClient {
     runInPaneCalls,
     submitPromptCalls,
     sendKeysCalls,
+    sendTextCalls,
     readPaneCalls,
     focusTabCalls,
     closeWorkspaceCalls,
@@ -95,6 +98,9 @@ export function createFakeHerdrClient(): FakeHerdrClient {
     },
     async sendKeys(paneId, ...keys) {
       sendKeysCalls.push({ paneId, keys })
+    },
+    async sendText(paneId, text) {
+      sendTextCalls.push({ paneId, text })
     },
     async readPane(paneId) {
       readPaneCalls.push(paneId)

@@ -22,6 +22,7 @@ function fakeClient(focusTabCalls: string[]): HerdrClient {
     runInPane: async () => undefined,
     submitPrompt: async () => undefined,
     sendKeys: async () => undefined,
+    sendText: async () => undefined,
     readPane: async () => '',
     focusTab: async (tabId) => {
       focusTabCalls.push(tabId)

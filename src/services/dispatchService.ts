@@ -33,6 +33,12 @@ export interface AgentLaunchOptions {
   /** How long to poll for delivery confirmation (see isDeliveryConfirmed)
    * after sending, before giving up on confirming delivery. */
   readonly deliveryConfirmTimeoutMs?: number
+  /** Claude Code が初めて開くフォルダで出す「Is this a project you trust?」
+   * の確認を自動で承認する(agent_status が idle になる前に 'blocked' で止まり、
+   * pane にそのダイアログが見えているときだけ)。dot-connect 自身が所有する
+   * ディレクトリ(skillSessionService.ts の notesDir)で使うためのもので、
+   * ユーザーが選んだ作業ディレクトリへの投入では使わない。 */
+  readonly acceptTrustDialog?: boolean
 }
 
 export interface DispatchOptions extends AgentLaunchOptions {
@@ -146,6 +152,35 @@ function resolveWorkspacePath(todo: Todo, override: string | undefined): string 
   return path
 }
 
+// Claude Code の信頼確認ダイアログ(実機で確認した文言):
+//   Quick safety check: Is this a project you created or one you trust? ...
+//   ❯ No, exit
+//     Yes, I trust this folder
+// 既定で「No, exit」が選ばれているので、Down で「Yes」に移してから Enter。
+// 承認済みのフォルダ(とその配下)では二度と出ない。
+const TRUST_DIALOG_PATTERN = /Yes, I trust this folder/
+const TRUST_YES_SELECTED_PATTERN = /❯\s*Yes, I trust this folder/
+
+// 'blocked' の pane に信頼確認が見えていれば承認して true。そうでなければ
+// (別のダイアログ、または読めなかった)何もせず false。
+async function acceptTrustDialogIfShown(herdr: HerdrClient, paneId: string): Promise<boolean> {
+  let text: string
+  try {
+    text = await herdr.readPane(paneId)
+  } catch (err) {
+    logger.warn('Could not read the pane to check for a trust dialog', { paneId, message: String(err) })
+    return false
+  }
+  if (!TRUST_DIALOG_PATTERN.test(text)) return false
+  logger.info('Accepting the Claude Code trust dialog', { paneId })
+  if (TRUST_YES_SELECTED_PATTERN.test(text)) {
+    await herdr.sendKeys(paneId, 'Enter')
+  } else {
+    await herdr.sendKeys(paneId, 'Down', 'Enter')
+  }
+  return true
+}
+
 // herdr's own `agent wait`/`wait agent-status` CLI fails immediately with
 // agent_not_found right after starting claude (herdr hasn't detected/attached
 // the agent yet), so it can't be used to wait for readiness here. Instead,
@@ -156,14 +191,20 @@ async function waitForAgentIdle(
   timeoutMs: number,
   pollIntervalMs: number,
   sleep: (ms: number) => Promise<void>,
-  agentName: string
+  agentName: string,
+  acceptTrustDialog: boolean
 ): Promise<void> {
   const deadline = Date.now() + timeoutMs
+  // 一度だけ: 承認しても idle にならないなら、別の何かで止まっている。
+  let trustHandled = !acceptTrustDialog
   for (;;) {
     const snapshot = await herdr.snapshot()
     const pane = snapshot.panes.find((p) => p.paneId === paneId)
     if (pane?.agentStatus === 'idle') {
       return
+    }
+    if (!trustHandled && pane?.agentStatus === 'blocked') {
+      trustHandled = await acceptTrustDialogIfShown(herdr, paneId)
     }
     if (Date.now() >= deadline) {
       throw new ConflictError(`${agentName} の起動を確認できませんでした`)
@@ -238,18 +279,17 @@ async function deliverTaskPrompt(
   return false
 }
 
-// command を pane で起動し、idle になるのを待ってから prompt を渡す。
-// agentName はタイムアウト時のメッセージにだけ使う。戻り値は deliverTaskPrompt
-// と同じ「受け取ったと確認できたか」。
-export async function launchAgentSession(
+// command を pane で起動し、入力を受け付けられる(idle + settle)ところまで待つ。
+// agentName はタイムアウト時のメッセージにだけ使う。todoId はログ用で、TODO に
+// 属さないセッション(skillSessionService.ts)は null を渡す。
+export async function startAgentInPane(
   herdr: HerdrClient,
   workspace: CreatedWorkspace,
   command: string,
   agentName: string,
-  prompt: string,
-  todoId: number,
+  todoId: number | null,
   options: AgentLaunchOptions
-): Promise<boolean> {
+): Promise<void> {
   logger.info('Starting agent in pane', {
     todoId,
     workspaceId: workspace.workspaceId,
@@ -265,13 +305,27 @@ export async function launchAgentSession(
     options.agentReadyTimeoutMs ?? DEFAULT_AGENT_READY_TIMEOUT_MS,
     options.pollIntervalMs ?? DEFAULT_POLL_INTERVAL_MS,
     options.sleep ?? defaultSleep,
-    agentName
+    agentName,
+    options.acceptTrustDialog ?? false
   )
 
   // idle is necessary but not sufficient: the TUI may still be initializing
   // and unable to accept input the instant herdr detects the agent.
   await (options.sleep ?? defaultSleep)(options.settleMs ?? DEFAULT_SETTLE_MS)
+}
 
+// startAgentInPane のあと prompt を渡す。戻り値は deliverTaskPrompt と同じ
+// 「受け取ったと確認できたか」。
+export async function launchAgentSession(
+  herdr: HerdrClient,
+  workspace: CreatedWorkspace,
+  command: string,
+  agentName: string,
+  prompt: string,
+  todoId: number,
+  options: AgentLaunchOptions
+): Promise<boolean> {
+  await startAgentInPane(herdr, workspace, command, agentName, todoId, options)
   return deliverTaskPrompt(herdr, workspace.paneId, prompt, todoId, options)
 }
 

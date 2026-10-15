@@ -53,11 +53,54 @@ export function openLinkMenu({ ev, headerLabel, options, selectedId, onSelect })
     closeMenu()
   })
 
+  showMenu(menu, ev.target.closest('.ms-chip, .label-chip'))
+}
+
+/**
+ * Same popover, but a plain list of actions (no linked/unlinked state):
+ * used by the TODO page's 新規TODO button to choose how to create one.
+ * @param {object} params
+ * @param {MouseEvent} params.ev - click event on the anchor button
+ * @param {string} params.headerLabel
+ * @param {Array<{action: string, label: string, hint?: string, disabled?: boolean, title?: string}>} params.items
+ * @param {(action: string) => void} params.onSelect
+ */
+export function openActionMenu({ ev, headerLabel, items, onSelect }) {
+  ev.stopPropagation()
+  const wasOpen = currentMenu !== null
+  closeMenu()
+  if (wasOpen) return
+
+  const menu = document.createElement('div')
+  menu.className = 'ms-menu'
+  menu.addEventListener('click', (e) => e.stopPropagation())
+
+  const buttons = items
+    .map((item) => {
+      const hint = item.hint ? `<span class="mm-hint">${escapeHtml(item.hint)}</span>` : ''
+      const title = item.title ? ` title="${escapeHtml(item.title)}"` : ''
+      return `<button type="button" data-menu-action="${escapeHtml(item.action)}"${item.disabled ? ' disabled' : ''}${title}>
+        <span class="mm-text">${escapeHtml(item.label)}${hint}</span></button>`
+    })
+    .join('')
+  menu.innerHTML = `<div class="mm-label">${escapeHtml(headerLabel)}</div>${buttons}`
+  menu.addEventListener('click', (e) => {
+    const btn = e.target.closest('[data-menu-action]')
+    if (!btn || btn.disabled) return
+    onSelect(btn.dataset.menuAction)
+    closeMenu()
+  })
+
+  showMenu(menu, ev.currentTarget ?? ev.target)
+}
+
+// Attaches the menu to the document and places it under the anchor, or
+// above it when it would run off the bottom of the window.
+function showMenu(menu, anchor) {
   document.body.appendChild(menu)
   currentMenu = menu
 
-  const chip = ev.target.closest('.ms-chip, .label-chip')
-  const r = chip.getBoundingClientRect()
+  const r = anchor.getBoundingClientRect()
   const mw = menu.offsetWidth
   const mh = menu.offsetHeight
   menu.style.left = `${Math.min(r.left, window.innerWidth - mw - 12)}px`

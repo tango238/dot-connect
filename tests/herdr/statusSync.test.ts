@@ -20,6 +20,7 @@ function fakeClient(snapshot: HerdrSnapshot): HerdrClient {
     runInPane: async () => undefined,
     submitPrompt: async () => undefined,
     sendKeys: async () => undefined,
+    sendText: async () => undefined,
     readPane: async () => '',
     focusTab: async () => undefined,
     closeWorkspace: async () => undefined,

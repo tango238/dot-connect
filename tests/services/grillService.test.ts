@@ -78,6 +78,7 @@ function fakeClient(): FakeClient {
       client.onSubmit?.(text)
     },
     async sendKeys() {},
+    async sendText() {},
     async readPane() { return '' },
     async focusTab() {},
     async closeWorkspace(workspaceId) { client.closeWorkspaceCalls.push(workspaceId) },

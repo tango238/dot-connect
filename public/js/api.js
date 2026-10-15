@@ -77,6 +77,10 @@ export const api = {
   // runs this dispatch; omitted, it falls back to the todo's saved value.
   dispatchTodo: (id, input) => request('POST', `/api/todos/${id}/dispatch`, input),
   openTodoSession: (id) => request('POST', `/api/todos/${id}/open-session`),
+  // 「プロンプトから複数登録」: /dot-connect を打ち込んだ Claude Code の herdr
+  // セッションを開く。返るのは { workspaceId, tabId, paneId }。409 の
+  // `code: 'skill_not_installed'` はスキル未インストール。
+  startSkillSession: () => request('POST', '/api/herdr/skill-session'),
 
   listMilestones: () => request('GET', '/api/milestones'),
   createMilestone: (input) => request('POST', '/api/milestones', input),

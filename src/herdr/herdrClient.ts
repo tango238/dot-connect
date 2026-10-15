@@ -1,4 +1,4 @@
-import { buildPromptArgs } from './promptArgs'
+import { assertPromptTextSupported, buildPromptArgs } from './promptArgs'
 import type { ExecFn } from './exec'
 
 export type HerdrAgentStatus = 'idle' | 'working' | 'blocked' | 'done' | 'unknown'
@@ -35,6 +35,9 @@ export interface HerdrClient {
   submitPrompt(paneId: string, text: string): Promise<void>
   // Sends one or more key presses (e.g. 'Enter') with no text.
   sendKeys(paneId: string, ...keys: string[]): Promise<void>
+  // Types literal text into the pane WITHOUT Enter: the text is left sitting
+  // in the agent's input for the user to finish and submit themselves.
+  sendText(paneId: string, text: string): Promise<void>
   // Reads the pane's currently-visible text content.
   readPane(paneId: string): Promise<string>
   focusTab(tabId: string): Promise<void>
@@ -250,6 +253,14 @@ export function createHerdrClient(
 
     async sendKeys(paneId, ...keys) {
       await runHerdrVoid(exec, [herdrBin, 'pane', 'send-keys', paneId, ...keys], timeoutMs)
+    },
+
+    async sendText(paneId, text) {
+      // Same positional-argument parser caveats as `agent prompt` (see
+      // promptArgs.ts): text that looks like a reserved global option would
+      // be consumed before reaching the command.
+      assertPromptTextSupported(text)
+      await runHerdrVoid(exec, [herdrBin, 'pane', 'send-text', paneId, text], timeoutMs)
     },
 
     async readPane(paneId) {
