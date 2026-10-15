@@ -215,9 +215,16 @@ nav { display: flex; flex-direction: column; gap: 2px; }
 .wip-label { flex-shrink: 0; font-size: 11.5px; font-weight: 700; font-variant-numeric: tabular-nums; }
 .wip.is-full { color: var(--working); }
 .wip.is-over { color: var(--blocked); }
-.sidebar-collapsed .wip { padding: 4px 2px; margin: 0 0 6px; width: 100%; justify-content: center; }
-.sidebar-collapsed .wip-cells { display: none; }
-.sidebar-collapsed .wip-label { font-size: 10.5px; }
+/* The same meter on its own row under the TODO page head, shown only in
+   the narrow layout where the sidebar (and its meter) is gone — see the
+   max-width rule. */
+.wip-inline { display: none; margin: 20px 0 14px; max-width: 360px; }
+.wip-inline .wip-label::before { content: 'WIP '; font-weight: 400; color: var(--text-dim); }
+/* Scoped to the sidebar: the collapsed state is persisted on <html>, so
+   without `.sidebar` these would also restyle the page-head meter above. */
+.sidebar-collapsed .sidebar .wip { padding: 4px 2px; margin: 0 0 6px; width: 100%; justify-content: center; }
+.sidebar-collapsed .sidebar .wip-cells { display: none; }
+.sidebar-collapsed .sidebar .wip-label { font-size: 10.5px; }
 /* ---------- pomodoro panel (TODO detail) ---------- */
 .pomo-start-row { display: flex; align-items: center; gap: 8px; padding: 4px; }
 .pomo-start-row input {
@@ -685,6 +692,7 @@ h1 { font-size: 20px; font-weight: 700; }
   nav { flex-direction: row; }
   .nav-btn { padding: 6px 10px; white-space: nowrap; }
   .side-sec, .herdr-status, .pomo, .wip { display: none; }
+  .wip-inline:not([hidden]) { display: flex; }
   .page { padding: 18px 14px 48px; }
   .todo { grid-template-columns: 26px 1fr; }
   .todo-actions { grid-column: 2; justify-content: flex-end; }
@@ -732,6 +740,7 @@ h1 { font-size: 20px; font-weight: 700; }
         <button class="btn btn-ghost" id="manage-workspaces-toggle">作業ディレクトリを管理</button>
         <button class="btn btn-accent" id="new-todo-toggle">＋ 新規TODO</button>
       </div>
+      <div class="wip wip-inline" role="meter" aria-label="WIP" aria-valuemin="0" hidden><span class="wip-cells"></span><span class="wip-label"></span></div>
       <p class="page-sub">TODOを herdr の Claude Code セッションに投入して並列実行。完了は手動で確定します。</p>
       <div class="inline-form stacked" id="new-todo-form" hidden></div>
       <div class="filters" role="group" aria-label="フィルタ">

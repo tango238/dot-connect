@@ -56,23 +56,29 @@ function renderSidebar() {
   refreshPomodoroLabel()
 }
 
-// Hidden entirely while the WIP limit is disabled (the default).
+// Hidden entirely while the WIP limit is disabled (the default). Two copies
+// of the meter exist — the sidebar one and the TODO page-head one that CSS
+// shows only when the narrow layout hides the sidebar — so render into every
+// `.wip` and let the stylesheet pick which is visible.
 function renderWipMeter(count) {
   const { settings } = getState()
-  const el = $('#wip-meter')
+  const meters = $all('.wip')
   if (!settings?.wipLimitEnabled) {
-    el.hidden = true
+    meters.forEach((el) => { el.hidden = true })
     return
   }
   const meter = wipMeter(count, settings.wipLimit)
-  el.hidden = false
-  el.classList.toggle('is-full', meter.full)
-  el.classList.toggle('is-over', meter.over)
-  el.setAttribute('aria-valuenow', String(count))
-  el.setAttribute('aria-valuemax', String(settings.wipLimit))
-  el.title = `WIP ${meter.label}${meter.full ? '(上限に達しています)' : ''}`
-  $('#wip-cells').textContent = meter.cells
-  $('#wip-label').textContent = meter.label
+  const title = `WIP ${meter.label}${meter.full ? '(上限に達しています)' : ''}`
+  meters.forEach((el) => {
+    el.hidden = false
+    el.classList.toggle('is-full', meter.full)
+    el.classList.toggle('is-over', meter.over)
+    el.setAttribute('aria-valuenow', String(count))
+    el.setAttribute('aria-valuemax', String(settings.wipLimit))
+    el.title = title
+    $('.wip-cells', el).textContent = meter.cells
+    $('.wip-label', el).textContent = meter.label
+  })
 }
 
 // Icon-only collapsed rail (vs. hiding the sidebar outright) so nav stays
