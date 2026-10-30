@@ -382,6 +382,18 @@ cp -R desktop/src-tauri/target/release/bundle/macos/dot-connect.app /Application
 リポジトリに入っていない。Tauriは `externalBin` に指定されたファイルの実在を
 ビルド時に検証するため、これを飛ばすと `cargo check` すら通らない。
 
+### アプリアイコン
+
+ソースは `desktop/src-tauri/icons/icon.svg`(ドットのノードを線でつないだ
+チェックリスト。配色は UI と同じ)。ブラウザ版のファビコン `public/favicon.svg`
+も同じファイル。各プラットフォーム向けのサイズ(`icon.icns` / `icon.ico` /
+`*.png`)は SVG から生成する:
+
+```bash
+cd desktop && bun x tauri icon src-tauri/icons/icon.svg -o src-tauri/icons
+rm -rf src-tauri/icons/android src-tauri/icons/ios   # モバイル向けは使わない
+```
+
 ### データの置き場所
 
 | パス | 中身 |
