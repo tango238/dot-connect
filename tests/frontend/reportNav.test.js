@@ -7,19 +7,19 @@ describe('canGoNext', () => {
     expect(canGoNext('', '2026-07-27')).toBe(false)
   })
 
-  test('disabled when no report has ever been generated (latest is null)', () => {
+  test('disabled while the current week is not known yet (latest is null)', () => {
     expect(canGoNext('2026-07-27', null)).toBe(false)
   })
 
-  test('disabled when already viewing the latest known week', () => {
+  test('disabled when already viewing the current week', () => {
     expect(canGoNext('2026-07-27', '2026-07-27')).toBe(false)
   })
 
-  test('disabled if somehow past the latest known week', () => {
+  test('disabled if somehow past the current week', () => {
     expect(canGoNext('2026-08-03', '2026-07-27')).toBe(false)
   })
 
-  test('enabled when a newer week is known to exist', () => {
+  test('enabled when viewing a past week', () => {
     expect(canGoNext('2026-07-20', '2026-07-27')).toBe(true)
   })
 })

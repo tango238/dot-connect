@@ -66,6 +66,7 @@ describe('loadConfig', () => {
       allowedModels: ['opus', 'sonnet', 'haiku', 'fable', 'codex'],
       staticDir: resolve(PROJECT_ROOT, 'public'),
       desktopMode: false,
+      reportAutoRefresh: true,
       mcpBinPath: null,
       notesDir: '/tmp/notes',
       claudeSkillsDir: '/tmp/claude/skills',

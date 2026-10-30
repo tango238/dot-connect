@@ -155,6 +155,13 @@ const MIGRATIONS: readonly string[] = [
     value TEXT NOT NULL,
     updated_at TEXT NOT NULL DEFAULT (datetime('now'))
   )`,
+  // 週ごとの目標(週次レポート画面の自由入力)。week_start は weekly_reports
+  // と同じ月曜日付だが FK は張らない: 目標はレポートの生成前に書くもの。
+  `CREATE TABLE IF NOT EXISTS weekly_goals (
+    week_start TEXT PRIMARY KEY,
+    body TEXT NOT NULL DEFAULT '',
+    updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+  )`,
 ]
 
 const ADDITIVE_COLUMNS: readonly { table: string; column: string; definition: string }[] = [

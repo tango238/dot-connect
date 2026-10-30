@@ -3,6 +3,7 @@ import type { Database } from 'bun:sqlite'
 import { createDatabase } from '../../src/db/database'
 import * as todoRepo from '../../src/db/todoRepo'
 import * as milestoneRepo from '../../src/db/milestoneRepo'
+import * as weeklyGoalRepo from '../../src/db/weeklyGoalRepo'
 import type { ClaudeRunner, WeeklyAggregate } from '../../src/services/claudeRunner'
 import {
   aggregateWeek,
@@ -28,6 +29,7 @@ function fakeRunner(analysis = { summary: 's', warnings: [] as string[], suggest
         calls.push(aggregate)
         return analysis
       },
+      tidyGoal: async (body) => body,
     },
   }
 }
@@ -35,6 +37,9 @@ function fakeRunner(analysis = { summary: 's', warnings: [] as string[], suggest
 function failingRunner(message: string): ClaudeRunner {
   return {
     analyze: async () => {
+      throw new Error(message)
+    },
+    tidyGoal: async () => {
       throw new Error(message)
     },
   }
@@ -146,6 +151,34 @@ describe('generateWeeklyReport', () => {
     expect(report.llmAnalysis).toEqual({ summary: 'great', warnings: ['w1'], suggestions: ['s1'] })
     expect(report.llmError).toBeNull()
     expect(calls[0]?.weekStart).toBe('2026-07-20')
+  })
+
+  test('hands the LLM the detailed statistics alongside the counts', async () => {
+    const { runner, calls } = fakeRunner()
+    const t = todoRepo.create(db, { title: 'quick', dueDate: '2026-07-22' })
+    db.run(`UPDATE todos SET created_at = '2026-07-21 09:00:00' WHERE id = ?`, [t.id])
+    todoRepo.complete(db, t.id)
+    db.run(`UPDATE todos SET completed_at = '2026-07-21 10:30:00' WHERE id = ?`, [t.id])
+
+    await generateWeeklyReport(db, runner, { weekStart: '2026-07-20' })
+
+    const details = calls[0]?.details
+    expect(details?.createdCount).toBe(1)
+    expect(details?.fastestCompleted).toEqual([{ title: 'quick', leadMinutes: 90, milestone: null }])
+    expect(details?.onTime).toEqual({ withDueCount: 1, onTimeCount: 1 })
+    expect(details?.daily).toHaveLength(7)
+    expect(details?.previousWeek).toEqual({ completedCount: 0, createdCount: 0, dispatchCount: 0 })
+    expect(details?.goal).toBeNull()
+  })
+
+  test("hands the LLM the week's goal when one is written, and null when it is blank", async () => {
+    const { runner, calls } = fakeRunner()
+    weeklyGoalRepo.upsert(db, '2026-07-20', '- 検索を出す')
+    weeklyGoalRepo.upsert(db, '2026-07-27', '   ')
+    await generateWeeklyReport(db, runner, { weekStart: '2026-07-20' })
+    await generateWeeklyReport(db, runner, { weekStart: '2026-07-27' })
+    expect(calls[0]?.details?.goal).toBe('- 検索を出す')
+    expect(calls[1]?.details?.goal).toBeNull()
   })
 
   test('defaults to the most recent Monday when weekStart is omitted', async () => {

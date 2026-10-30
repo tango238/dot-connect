@@ -26,12 +26,17 @@ let state = {
   // 仕事だから。全件は「すべて」チップに退避している。
   filter: 'recent',
   herdr: { connected: false, totalPanes: 0 },
+  // The stored (AI-analysed) weekly report for the displayed week.
   report: null,
   reportStatus: 'idle', // 'idle' | 'loading' | 'ready' | 'empty' | 'error' | 'generating'
-  // The week currently displayed (YYYY-MM-DD, Monday) and the latest week a
-  // report actually exists for — the latter bounds the "→" nav button.
+  // The week currently displayed (YYYY-MM-DD, Monday) and the current week
+  // (the latest one that can be shown) — the latter bounds the "→" nav button.
   reportWeekStart: null,
   reportLatestWeekStart: null,
+  // Live statistics for the displayed week (GET /api/reports/weekly/stats),
+  // recomputed by the server on every fetch — see report.js.
+  reportStats: null,
+  reportStatsStatus: 'idle', // 'idle' | 'loading' | 'ready' | 'error'
   loaded: { todos: false, milestones: false, herdr: false, labels: false, workspaces: false, models: false },
 }
 

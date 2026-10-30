@@ -15,6 +15,39 @@ function outerEnvelope(resultText: string, extra: Record<string, unknown> = {}):
   return JSON.stringify({ result: resultText, is_error: false, ...extra })
 }
 
+describe('createClaudeRunner tidyGoal', () => {
+  test('sends the goal after the tidy instructions and returns the plain result text', async () => {
+    const calls: string[][] = []
+    const exec: ExecFn = async (cmd) => {
+      calls.push(cmd)
+      return { stdout: outerEnvelope('- 検索を出す\n- CI を速く\n'), stderr: '', exitCode: 0 }
+    }
+    const runner = createClaudeRunner(exec, 'claude')
+    const tidied = await runner.tidyGoal('検索を出す。CIを速く。')
+    expect(tidied).toBe('- 検索を出す\n- CI を速く')
+    const prompt = calls[0]?.[2] ?? ''
+    expect(prompt).toContain('内容・意図・約束している範囲を変えずに')
+    expect(prompt.endsWith('検索を出す。CIを速く。')).toBe(true)
+    expect(calls[0]).toContain('--output-format')
+  })
+
+  test('unwraps a code fence the model wrapped the text in', async () => {
+    const exec: ExecFn = async () => ({
+      stdout: outerEnvelope('```markdown\n- a\n- b\n```'),
+      stderr: '',
+      exitCode: 0,
+    })
+    expect(await createClaudeRunner(exec, 'claude').tidyGoal('a b')).toBe('- a\n- b')
+  })
+
+  test('fails on an empty result or a claude-reported error', async () => {
+    const empty: ExecFn = async () => ({ stdout: outerEnvelope('   '), stderr: '', exitCode: 0 })
+    await expect(createClaudeRunner(empty, 'claude').tidyGoal('a')).rejects.toThrow('empty result')
+    const errored: ExecFn = async () => ({ stdout: outerEnvelope('nope', { is_error: true }), stderr: '', exitCode: 0 })
+    await expect(createClaudeRunner(errored, 'claude').tidyGoal('a')).rejects.toThrow('reported an error')
+  })
+})
+
 describe('createClaudeRunner', () => {
   test('invokes claude -p with --output-format json and parses the inner result JSON', async () => {
     const calls: { cmd: string[]; options?: ExecOptions }[] = []

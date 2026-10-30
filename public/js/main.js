@@ -9,7 +9,7 @@ import { isSidebarCollapsed, persistSidebarCollapsed } from './lib/sidebarState.
 import { wipMeter } from './lib/wipLimit.js'
 import { hasOpenMilestoneForm, initMilestones, renderMilestones, renderSideMilestones } from './milestones.js'
 import { initPromptDialog } from './promptDialog.js'
-import { ensureReportLoaded, initReport, regenerateLatestReport, renderReport } from './report.js'
+import { ensureReportLoaded, initReport, regenerateLatestReport, renderReport, scheduleReportStatsRefresh } from './report.js'
 import { initDay, renderDay } from './day.js'
 import { initPlan, renderPlan } from './plan.js'
 import { initPomodoro, refreshPomodoroLabel } from './pomodoro.js'
@@ -34,7 +34,7 @@ const PAGE_RENDERERS = {
 
 function activePageName() {
   const el = document.querySelector('.page.active')
-  return el ? el.id.replace('page-', '') : 'todos'
+  return el ? el.id.replace('page-', '') : 'report'
 }
 
 function renderActivePage() {
@@ -115,6 +115,8 @@ function switchToPage(name) {
   })
   $all('.page').forEach((p) => p.classList.toggle('active', p.id === `page-${name}`))
   if (name === 'report') {
+    // First visit loads the week; later visits re-fetch its numbers so
+    // changes made on the other pages show up.
     ensureReportLoaded().then(renderActivePage)
   }
   renderActivePage()
@@ -178,6 +180,10 @@ async function bootstrap() {
     renderActivePage()
   })
 
+  // The report is the page that opens at startup (index.html marks it
+  // active), so its week is loaded alongside the initial data rather than
+  // waiting for a click.
+  void ensureReportLoaded().then(renderActivePage)
   try {
     await loadInitial()
   } catch (err) {
@@ -196,7 +202,10 @@ async function bootstrap() {
         !!document.querySelector('.modal-backdrop:not([hidden])'),
     })
     const events = new EventSource('/api/events')
-    events.addEventListener('change', () => live.invalidate())
+    events.addEventListener('change', () => {
+      live.invalidate()
+      scheduleReportStatsRefresh()
+    })
     disconnectLive = () => { events.close(); live.stop() }
   }
   connectLive()

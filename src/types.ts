@@ -174,6 +174,12 @@ export interface WeeklyReport {
   readonly generatedAt: string
 }
 
+export interface WeeklyGoal {
+  readonly weekStart: string
+  readonly body: string
+  readonly updatedAt: string
+}
+
 export interface LlmAnalysis {
   readonly summary: string
   readonly warnings: string[]

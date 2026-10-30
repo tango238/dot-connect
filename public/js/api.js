@@ -131,6 +131,15 @@ export const api = {
   installSkill: () => request('POST', '/api/settings/skill/install'),
 
   getLatestReport: () => request('GET', '/api/reports/weekly/latest'),
+  // The week's goal (free text). GET never 404s: an unwritten week comes
+  // back with an empty body. tidy returns the reworded text without saving.
+  getReportGoal: (weekStart) =>
+    request('GET', `/api/reports/weekly/goal?weekStart=${encodeURIComponent(weekStart)}`),
+  saveReportGoal: (weekStart, body) => request('POST', '/api/reports/weekly/goal', { weekStart, body }),
+  tidyReportGoal: (body) => request('POST', '/api/reports/weekly/goal/tidy', { body }),
+  // Live numbers for the week (no claude call, safe to re-fetch freely).
+  getReportStats: (weekStart) =>
+    request('GET', `/api/reports/weekly/stats${weekStart ? `?weekStart=${encodeURIComponent(weekStart)}` : ''}`),
   getReportByWeek: (weekStart) =>
     request('GET', `/api/reports/weekly?weekStart=${encodeURIComponent(weekStart)}`),
   generateReport: (weekStart) =>

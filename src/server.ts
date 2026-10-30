@@ -11,6 +11,7 @@ import { createApiRoutes } from './api/routes'
 import type { AppDependencies } from './api/dependencies'
 import { detectCapabilities } from './services/capabilitiesService'
 import { createClaudeRunner } from './services/claudeRunner'
+import { createDailyReportRefresher } from './services/reportRefreshService'
 
 export function buildDependencies(): AppDependencies {
   // Memoized so the `which herdr`/`which claude` probes run at most once per
@@ -113,6 +114,15 @@ if (import.meta.main) {
     logger.warn(`Binding to a non-loopback host (${config.host}) — reachable beyond this machine`)
   }
   logger.info(`APIトークン認証: ${config.apiToken !== null ? '有効' : '無効'}`)
+
+  // 週次レポートの LLM 分析を1日1回(起動時と、その後1時間ごとの確認で日付が
+  // 変わっていたら)生成し直す。数値の統計は保存せず毎回集計するので、
+  // ここで更新されるのは claude -p の文章だけ。
+  if (config.reportAutoRefresh) {
+    createDailyReportRefresher({ db: deps.db, claudeRunner: deps.claudeRunner }).start()
+  } else {
+    logger.info('週次レポートの自動再生成: 無効 (DOT_CONNECT_REPORT_AUTO_REFRESH=0)')
+  }
 
   if (config.desktopMode) {
     // See desktopLifecycle.ts: exits this process once the desktop shell's

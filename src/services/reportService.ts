@@ -1,34 +1,20 @@
 import type { Database } from 'bun:sqlite'
 import * as dispatchEventRepo from '../db/dispatchEventRepo'
 import * as reportRepo from '../db/reportRepo'
+import * as weeklyGoalRepo from '../db/weeklyGoalRepo'
 import { logger } from '../logger'
-import type { ClaudeRunner } from './claudeRunner'
+import type { ClaudeRunner, WeeklyAggregateDetails } from './claudeRunner'
 import type { WeeklyReport } from '../types'
+import { addDaysLocal, formatLocalDate, mostRecentMonday } from './localDate'
+import { computeWeeklyStats, type WeeklyStats } from './reportStatsService'
 
 // Calendar math is deliberately done in local time throughout (matching
 // SQLite's date(x, 'localtime') used in aggregateWeek/countInRange below):
 // "the most recent Monday" and week boundaries are a human, local-calendar
-// concept, while storage (datetime('now')) stays UTC.
-function formatLocalDate(date: Date): string {
-  const year = date.getFullYear()
-  const month = String(date.getMonth() + 1).padStart(2, '0')
-  const day = String(date.getDate()).padStart(2, '0')
-  return `${year}-${month}-${day}`
-}
-
-function addDaysLocal(dateStr: string, days: number): string {
-  const parts = dateStr.split('-').map(Number)
-  const date = new Date(parts[0] ?? 0, (parts[1] ?? 1) - 1, parts[2] ?? 1)
-  date.setDate(date.getDate() + days)
-  return formatLocalDate(date)
-}
-
-export function mostRecentMonday(now: Date): string {
-  const day = now.getDay() // 0 = Sunday .. 6 = Saturday, local time
-  const diffToMonday = day === 0 ? 6 : day - 1
-  const monday = new Date(now.getFullYear(), now.getMonth(), now.getDate() - diffToMonday)
-  return formatLocalDate(monday)
-}
+// concept, while storage (datetime('now')) stays UTC. The helpers live in
+// localDate.ts; mostRecentMonday is re-exported because callers and tests
+// reach it through this module.
+export { mostRecentMonday }
 
 export interface WeeklyCounts {
   readonly completedCount: number
@@ -64,6 +50,27 @@ export function aggregateWeek(db: Database, weekStart: string, weekEnd: string):
   }
 }
 
+// LLM に渡す追加の材料。画面の統計(reportStatsService)から、文章で意味を
+// 持つものだけを抜く —— 日別の山谷、速かった TODO、期日内率、前週比。
+export function aggregateDetails(stats: WeeklyStats, goal: string | null): WeeklyAggregateDetails {
+  return {
+    goal,
+    createdCount: stats.createdCount,
+    previousWeek: stats.previous,
+    daily: stats.daily,
+    fastestCompleted: stats.fastest.map((todo) => ({
+      title: todo.title,
+      leadMinutes: todo.leadMinutes,
+      milestone: todo.milestoneTitle,
+    })),
+    leadTime: stats.leadTime,
+    onTime: stats.onTime,
+    byPriority: stats.byPriority,
+    byMilestone: stats.byMilestone.map((entry) => ({ title: entry.title, count: entry.count })),
+    backlog: stats.backlog,
+  }
+}
+
 export interface GenerateWeeklyReportOptions {
   readonly weekStart?: string
   readonly now?: Date
@@ -74,9 +81,12 @@ export async function generateWeeklyReport(
   claudeRunner: ClaudeRunner,
   options: GenerateWeeklyReportOptions = {}
 ): Promise<WeeklyReport> {
-  const weekStart = options.weekStart ?? mostRecentMonday(options.now ?? new Date())
+  const now = options.now ?? new Date()
+  const weekStart = options.weekStart ?? mostRecentMonday(now)
   const weekEnd = addDaysLocal(weekStart, 6)
   const counts = aggregateWeek(db, weekStart, weekEnd)
+  const goal = weeklyGoalRepo.getByWeekStart(db, weekStart)?.body.trim() || null
+  const details = aggregateDetails(computeWeeklyStats(db, weekStart, formatLocalDate(now)), goal)
 
   // The numeric aggregates are always meaningful and must always be saved,
   // even if the LLM analysis fails or times out (F6): surface the failure
@@ -84,7 +94,7 @@ export async function generateWeeklyReport(
   let llmAnalysis = null
   let llmError: string | null = null
   try {
-    llmAnalysis = await claudeRunner.analyze({ weekStart, weekEnd, ...counts })
+    llmAnalysis = await claudeRunner.analyze({ weekStart, weekEnd, ...counts, details })
   } catch (err) {
     llmError = err instanceof Error ? err.message : String(err)
     logger.warn('Weekly report LLM analysis failed; saving counts without it', {

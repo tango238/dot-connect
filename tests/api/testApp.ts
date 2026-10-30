@@ -125,6 +125,8 @@ export function createFakeHerdrClient(): FakeHerdrClient {
 export function createFakeClaudeRunner(analysis: LlmAnalysis): ClaudeRunner {
   return {
     analyze: async () => analysis,
+    // Mirrors what the real tidy does in spirit: same content, neater shape.
+    tidyGoal: async (body) => `整理済み: ${body.trim()}`,
   }
 }
 

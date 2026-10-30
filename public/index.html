@@ -473,6 +473,99 @@ h1 { font-size: 20px; font-weight: 700; }
 .schedule-fields span { color: var(--text-faint); }
 .sched-badge { font-size: 10.5px; font-family: var(--mono); font-weight: 600; color: var(--accent); background: var(--accent-dim); padding: 1px 7px; border-radius: 8px; }
 
+/* ---------- weekly report: live statistics ---------- */
+.rep-head { margin-bottom: 14px; min-height: 32px; }
+.rep-badge { font-size: 11px; padding: 2px 9px; border-radius: 999px; background: var(--accent-dim); color: var(--accent); font-weight: 700; }
+.rep-dash { display: grid; grid-template-columns: minmax(250px, 1fr) 2fr; gap: 12px; margin-bottom: 14px; }
+.rep-dash .rep-cards { margin-bottom: 0; grid-template-columns: repeat(3, 1fr); }
+.rep-hero { border: 1px solid var(--border); border-radius: var(--radius); background: var(--bg-raise); padding: 18px; display: flex; align-items: center; gap: 18px; }
+.rep-donut { --pct: 0; width: 116px; height: 116px; border-radius: 50%; flex-shrink: 0; display: grid; place-items: center;
+  background: conic-gradient(var(--accent) calc(var(--pct) * 1%), var(--accent-dim) 0); }
+.rep-donut-in { width: 86px; height: 86px; border-radius: 50%; background: var(--bg-raise); display: flex; flex-direction: column; align-items: center; justify-content: center; }
+.rep-donut-num { font-family: var(--mono); font-size: 28px; font-weight: 700; line-height: 1; }
+.rep-donut-sub { font-size: 10.5px; color: var(--text-dim); margin-top: 5px; white-space: nowrap; }
+.rep-hero-text { min-width: 0; }
+.rep-hero-title { font-size: 13px; font-weight: 700; margin-bottom: 4px; }
+.rep-hero-text p { font-size: 12.5px; color: var(--text-dim); margin: 0 0 6px; }
+.rep-bars { display: flex; gap: 8px; align-items: stretch; height: 170px; padding-top: 6px; }
+.rep-bar-col { flex: 1; display: flex; flex-direction: column; align-items: center; min-width: 0; }
+.rep-bar-pair { flex: 1; width: 100%; display: flex; align-items: flex-end; justify-content: center; gap: 4px; border-bottom: 1px solid var(--border); }
+.rep-bar { width: 18px; max-width: 30%; border-radius: 4px 4px 0 0; min-height: 2px; }
+.rep-bar.created { background: var(--accent-dim); box-shadow: inset 0 0 0 1px var(--accent); }
+.rep-bar.completed { background: var(--accent); }
+.rep-bar-label { font-family: var(--mono); font-size: 10.5px; color: var(--text-faint); margin-top: 6px; text-align: center; line-height: 1.3; }
+.rep-bar-col.today .rep-bar-label { color: var(--accent); font-weight: 700; }
+.rep-legend { display: flex; gap: 14px; font-size: 11.5px; color: var(--text-dim); margin-top: 10px; }
+.rep-legend i { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 5px; vertical-align: -1px; }
+.rep-legend i.created { background: var(--accent-dim); box-shadow: inset 0 0 0 1px var(--accent); }
+.rep-legend i.completed { background: var(--accent); }
+.rep-grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; align-items: start; }
+.rep-sub-tag { font-size: 11px; font-weight: 600; color: var(--text-faint); }
+.rep-rank { list-style: none; margin: 0; padding: 0; }
+.rep-rank li { display: flex; gap: 10px; align-items: flex-start; padding: 8px 0; border-top: 1px solid var(--border); }
+.rep-rank li:first-child { border-top: none; padding-top: 0; }
+.rep-rank .rk { font-family: var(--mono); font-weight: 700; color: var(--accent); width: 18px; flex-shrink: 0; padding-top: 1px; }
+.rep-rank .rt { flex: 1; min-width: 0; }
+.rep-rank .rt button { background: none; border: none; color: var(--text); font: inherit; font-size: 13px; text-align: left; cursor: pointer; padding: 0; overflow-wrap: anywhere; }
+.rep-rank .rt button:hover { color: var(--accent); }
+.rep-rank .rm { font-size: 11px; color: var(--text-faint); margin-top: 2px; font-family: var(--mono); }
+.rep-rank .rl { font-family: var(--mono); font-size: 12.5px; color: var(--done-unread); white-space: nowrap; padding-top: 1px; }
+.rep-sub-h { font-size: 11px; font-weight: 700; color: var(--text-faint); letter-spacing: .04em; margin: 14px 0 6px; }
+.rep-sec h2 + .rep-sub-h { margin-top: 0; }
+.rep-hbar { display: flex; align-items: center; gap: 8px; font-size: 12px; padding: 3px 0; }
+.rep-hbar .hl { width: 120px; flex-shrink: 0; color: var(--text-dim); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rep-hbar .ht { flex: 1; height: 8px; background: var(--bg-hover); border-radius: 4px; overflow: hidden; }
+.rep-hbar .hf { display: block; height: 100%; background: var(--bar-color, var(--accent)); border-radius: 4px; }
+.rep-hbar .hn { font-family: var(--mono); width: 26px; text-align: right; }
+.rep-kv { display: flex; justify-content: space-between; font-size: 12.5px; padding: 5px 0; color: var(--text-dim); border-top: 1px solid var(--border); }
+.rep-kv:first-of-type { border-top: none; }
+.rep-kv b { color: var(--text); font-family: var(--mono); font-weight: 600; }
+.rep-kv b.warn { color: var(--working); }
+.rep-fresh { font-size: 11px; color: var(--text-faint); font-weight: 400; margin-left: auto; font-family: var(--mono); }
+@media (max-width: 960px) {
+  .rep-dash, .rep-grid2 { grid-template-columns: 1fr; }
+  .rep-dash .rep-cards { grid-template-columns: repeat(2, 1fr); }
+}
+
+.rep-goal textarea:not([hidden]) { display: block; }
+.rep-goal textarea { width: 100%; min-height: 192px; resize: vertical; font: inherit; font-size: 13.5px; line-height: 1.55; padding: 10px 12px;
+  border: 1px solid var(--border); border-radius: var(--radius); background: var(--bg); color: var(--text); }
+.rep-goal textarea:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
+.rep-goal textarea:disabled { opacity: .6; }
+/* Same box as the textarea so swapping between them doesn't move the page. */
+.rep-goal-view { min-height: 192px; padding: 10px 12px; border: 1px dashed var(--border); border-radius: var(--radius); background: var(--bg);
+  font-size: 13.5px; line-height: 1.55; overflow-wrap: anywhere; cursor: text; color: var(--text); }
+/* Rendered Markdown inside the goal view. */
+.rep-goal-view h1, .rep-goal-view h2, .rep-goal-view h3, .rep-goal-view h4, .rep-goal-view h5, .rep-goal-view h6 { font-weight: 700; line-height: 1.35; margin: 10px 0 6px; }
+.rep-goal-view > :first-child { margin-top: 0; }
+.rep-goal-view > :last-child { margin-bottom: 0; }
+.rep-goal-view h1 { font-size: 18px; }
+.rep-goal-view h2 { font-size: 16px; }
+.rep-goal-view h3 { font-size: 14.5px; }
+.rep-goal-view h4, .rep-goal-view h5, .rep-goal-view h6 { font-size: 13.5px; color: var(--text-dim); }
+.rep-goal-view p { margin: 0 0 8px; }
+.rep-goal-view ul, .rep-goal-view ol { margin: 0 0 8px; padding-left: 22px; }
+.rep-goal-view ul ul, .rep-goal-view ol ol, .rep-goal-view ul ol, .rep-goal-view ol ul { margin-bottom: 0; }
+.rep-goal-view li { margin: 2px 0; }
+.rep-goal-view li.task { list-style: none; margin-left: -20px; }
+.rep-goal-view li.task input { accent-color: var(--accent); vertical-align: -2px; margin-right: 4px; }
+.rep-goal-view li.task.done { color: var(--text-dim); text-decoration: line-through; }
+.rep-goal-view code { font-family: var(--mono); font-size: 12px; background: var(--bg-hover); padding: 1px 5px; border-radius: 4px; }
+.rep-goal-view pre { background: var(--bg-hover); border-radius: 6px; padding: 10px 12px; margin: 0 0 8px; overflow-x: auto; }
+.rep-goal-view pre code { background: none; padding: 0; white-space: pre; }
+.rep-goal-view blockquote { border-left: 3px solid var(--border); margin: 0 0 8px; padding: 2px 0 2px 12px; color: var(--text-dim); }
+.rep-goal-view hr { border: none; border-top: 1px solid var(--border); margin: 10px 0; }
+.rep-goal-view a { color: var(--accent); }
+.rep-goal-view strong { font-weight: 700; }
+.rep-goal-view:hover { border-color: var(--accent); }
+.rep-goal-view:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.rep-goal-view.empty { color: var(--text-faint); }
+.rep-goal-view.busy { opacity: .6; cursor: default; }
+.rep-goal-actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-top: 10px; }
+.rep-goal-actions .field-hint { margin: 0 0 0 auto; }
+.rep-goal .ai-tag { margin-left: 4px; }
+.rep-goal #goal-status.dirty { color: var(--working); }
+
 /* ---------- plan timeline ---------- */
 .plan-wrap { border: 1px solid var(--border); border-radius: var(--radius); background: var(--bg-raise); padding: 18px 20px 22px; overflow-x: auto; }
 .plan-weeks { display: flex; margin-left: 200px; border-bottom: 1px solid var(--border); padding-bottom: 6px; min-width: 480px; }
@@ -792,13 +885,13 @@ h1 { font-size: 20px; font-weight: 700; }
     <button class="sidebar-toggle" id="sidebar-toggle" type="button" aria-expanded="true">«</button>
     <div class="logo"><div class="logo-dot"></div><div class="logo-name">dot<span>-</span>connect</div></div>
     <nav aria-label="メイン">
+      <button class="nav-btn" data-page="report" aria-current="page" title="週次レポート"><span class="n-ico">▤</span><span class="nav-label">週次レポート</span></button>
       <div class="pomo" id="pomodoro" data-status="idle" aria-label="ポモドーロタイマー" role="group"></div>
-      <button class="nav-btn" data-page="todos" aria-current="page" title="TODO"><span class="n-ico">☑</span><span class="nav-label">TODO</span><span class="nav-count" id="count-todos">–</span></button>
+      <button class="nav-btn" data-page="todos" title="TODO"><span class="n-ico">☑</span><span class="nav-label">TODO</span><span class="nav-count" id="count-todos">–</span></button>
       <div class="wip" id="wip-meter" role="meter" aria-label="WIP" aria-valuemin="0" hidden><span class="wip-cells" id="wip-cells"></span><span class="wip-label" id="wip-label"></span></div>
       <button class="nav-btn" data-page="day" title="スケジュール"><span class="n-ico">◷</span><span class="nav-label">スケジュール</span></button>
       <button class="nav-btn" data-page="plan" title="計画"><span class="n-ico">▦</span><span class="nav-label">計画</span></button>
       <button class="nav-btn" data-page="milestones" title="マイルストーン"><span class="n-ico">◆</span><span class="nav-label">マイルストーン</span><span class="nav-count" id="count-ms">–</span></button>
-      <button class="nav-btn" data-page="report" title="週次レポート"><span class="n-ico">▤</span><span class="nav-label">週次レポート</span></button>
     </nav>
     <div class="side-sec">
       <div class="side-label">アクティブなマイルストーン</div>
@@ -813,7 +906,7 @@ h1 { font-size: 20px; font-weight: 700; }
 
   <main>
     <!-- ============ TODO ============ -->
-    <section class="page active" id="page-todos" aria-label="TODO一覧">
+    <section class="page" id="page-todos" aria-label="TODO一覧">
       <div class="page-head">
         <h1>TODO</h1>
         <button class="btn btn-ghost" id="manage-workspaces-toggle">作業ディレクトリを管理</button>
@@ -890,12 +983,31 @@ h1 { font-size: 20px; font-weight: 700; }
     </section>
 
     <!-- ============ REPORT ============ -->
-    <section class="page" id="page-report" aria-label="週次レポート">
+    <section class="page active" id="page-report" aria-label="週次レポート">
       <div class="page-head">
         <h1>週次レポート</h1>
       </div>
-      <p class="page-sub">数値はDBから機械集計。差分分析は claude -p が生成します。</p>
+      <p class="page-sub">数値は開くたびにDBから集計(毎日更新)。AIによる振り返りは claude -p が1日1回生成します。</p>
       <div id="report-content"></div>
+      <!-- The goal form lives outside the re-rendered regions above and
+           below, so state updates (polls, stats refreshes) never wipe what
+           is being typed — report.js only touches it when the week changes
+           or after a save/tidy. -->
+      <section class="rep-sec rep-goal" id="report-goal" hidden aria-label="週の目標">
+        <h2>目標 <span class="rep-sub-tag" id="goal-week"></span><span class="rep-fresh" id="goal-status"></span></h2>
+        <!-- Until it is focused the goal is shown as plain text (goal-view);
+             clicking or tabbing to it swaps in the textarea, and leaving the
+             textarea swaps the text back. -->
+        <div class="rep-goal-view empty" id="goal-view" tabindex="0" role="button" aria-label="週の目標(クリックで編集)"></div>
+        <textarea id="goal-text" rows="8" maxlength="4000" placeholder="この週に達成したいことを Markdown で自由に書く。例:&#10;# 今週の目標&#10;- [ ] 検索リニューアルのPRを出す&#10;- [ ] CIを4分以内にする" aria-label="週の目標(Markdown)" hidden></textarea>
+        <div class="rep-goal-actions">
+          <button class="btn btn-accent" id="goal-save" type="button" disabled>保存</button>
+          <button class="btn" id="goal-tidy" type="button">整理する <span class="ai-tag">claude -p</span></button>
+          <button class="btn btn-ghost" id="goal-undo" type="button" hidden>整理前に戻す</button>
+          <span class="field-hint">Markdown で書けます(# 見出し、- 箇条書き、- [ ] チェック、**太字**)。保存した目標は AI の振り返りにも渡されます。「整理する」は内容を変えずに読みやすく整えて保存します。</span>
+        </div>
+      </section>
+      <div id="report-analysis"></div>
     </section>
   </main>
 </div>

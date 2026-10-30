@@ -245,6 +245,23 @@ export const weekStartQuerySchema = z.object({
   weekStart: dateString,
 })
 
+// GET /api/reports/weekly/stats: 省略時はサーバー側で今週(直近の月曜)。
+export const optionalWeekStartQuerySchema = z.object({
+  weekStart: dateString.optional(),
+})
+
+// 週の目標。空文字は「目標を消す」なので許す。前後の空白は保存前に落とす。
+export const GOAL_MAX_LENGTH = 4000
+export const saveGoalSchema = z.object({
+  weekStart: dateString,
+  body: z.string().max(GOAL_MAX_LENGTH, `目標は${GOAL_MAX_LENGTH}文字以内にしてください`),
+})
+
+// 「整理する」は未保存の入力にも効かせたいので、本文を直接受ける。
+export const tidyGoalSchema = z.object({
+  body: z.string().trim().min(1, '整理する目標を入力してください').max(GOAL_MAX_LENGTH),
+})
+
 // herdr の workspace/tab/pane ID。形式は herdr 側の都合で決まるので
 // 中身は見ず、空と極端な長さだけ弾く。paneId だけが必須: tab/workspace は
 // herdr のスナップショットから引けるので、指定されたときは照合に使うだけ。

@@ -25,6 +25,9 @@ export interface Config {
   // env — a compiled binary has no `import.meta.dir` to fall back on.
   readonly staticDir: string
   readonly desktopMode: boolean
+  // 週次レポート(LLM 分析)を1日1回自動で生成し直すか。claude -p を呼ぶので
+  // DOT_CONNECT_REPORT_AUTO_REFRESH=0 で止められる。
+  readonly reportAutoRefresh: boolean
   readonly mcpBinPath: string | null
   // Plain-text notes the dot-connect skill reads and appends to (see
   // skillNotesService.ts). Opened from the settings dialog in Finder.
@@ -135,6 +138,7 @@ function readConfig(env: NodeJS.ProcessEnv): Config {
     allowedModels: parseAllowedModels(env.DOT_CONNECT_ALLOWED_MODELS),
     staticDir: resolveStaticDir(env.STATIC_DIR),
     desktopMode: env.DOT_CONNECT_DESKTOP === '1',
+    reportAutoRefresh: env.DOT_CONNECT_REPORT_AUTO_REFRESH !== '0',
     mcpBinPath: readOptionalString(env.DOT_CONNECT_MCP_BIN),
     notesDir: resolve(readOptionalString(env.DOT_CONNECT_NOTES_DIR) ?? join(homedir(), '.local', 'dot-connect', 'notes')),
     claudeSkillsDir: join(resolve(readOptionalString(env.CLAUDE_CONFIG_DIR) ?? join(homedir(), '.claude')), 'skills'),
