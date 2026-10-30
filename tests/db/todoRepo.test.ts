@@ -291,3 +291,28 @@ describe('todoRepo.attachSession / findByHerdrPaneId', () => {
   })
 })
 
+describe('todoRepo schedule', () => {
+  test('create stores the pair and update clears it with nulls', () => {
+    const created = todoRepo.create(db, {
+      title: 'x',
+      scheduledStart: '2026-10-30T10:00',
+      scheduledEnd: '2026-10-30T11:00',
+    })
+    expect(created.scheduledStart).toBe('2026-10-30T10:00')
+    expect(created.scheduledEnd).toBe('2026-10-30T11:00')
+
+    // undefined は据え置き
+    const renamed = todoRepo.update(db, created.id, { title: 'y' })
+    expect(renamed?.scheduledStart).toBe('2026-10-30T10:00')
+
+    const cleared = todoRepo.update(db, created.id, { scheduledStart: null, scheduledEnd: null })
+    expect(cleared?.scheduledStart).toBeNull()
+    expect(cleared?.scheduledEnd).toBeNull()
+  })
+
+  test('defaults to no schedule', () => {
+    const todo = todoRepo.create(db, { title: 'x' })
+    expect(todo.scheduledStart).toBeNull()
+    expect(todo.scheduledEnd).toBeNull()
+  })
+})

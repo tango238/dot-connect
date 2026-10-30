@@ -4,6 +4,7 @@
 import { dueBadge } from './dueBadge.js'
 import { modelBadge } from './modelBadge.js'
 import { priorityBadge } from './priorityBadge.js'
+import { formatSchedule } from './schedule.js'
 import { BUCKET_LABEL, todoBucket } from './todoFilter.js'
 
 // Also used by todos.js for the row's session badge — kept here so the
@@ -63,6 +64,9 @@ export function detailRows(todo, timeZone, today) {
   // dialog and the list never disagree about how near a deadline is.
   const due = dueBadge(todo.dueDate, today)
   if (due) rows.push({ label: '期限', value: due.label })
+  // 予定(スケジュール画面の時間帯)。期日と並べて出すが別物 —— 期日は締切。
+  const schedule = formatSchedule(todo)
+  if (schedule) rows.push({ label: '予定', value: schedule, mono: true })
   // All three badges return null for the default/unset case (and for todos
   // that predate any of these fields), which lines up with this function's
   // own rule of omitting a row rather than rendering it blank.

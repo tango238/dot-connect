@@ -19,10 +19,21 @@ const WORKSPACE_PATH_DESCRIPTION =
 const MODEL_DESCRIPTION =
   'TODOを投入する際に使うモデル(opus/sonnet/haiku/fableはClaude Codeのモデル、codexはClaude Codeの代わりにCodex CLIを起動する。サーバー設定で拡張された値も可)。未指定ならClaude Codeの既定モデルが使われる。'
 
+// 1日スケジュール(「スケジュール」ページ)に置く予定。期日(dueDate)とは
+// 独立で、期日は締切、予定は「いつ取り組むか」。
+const SCHEDULED_START_DESCRIPTION =
+  '予定の開始。"YYYY-MM-DDTHH:MM" のローカル時刻(タイムゾーン無し)。scheduledEnd と必ず一緒に指定する。'
+const SCHEDULED_END_DESCRIPTION =
+  '予定の終了。"YYYY-MM-DDTHH:MM" のローカル時刻で、scheduledStart と同じ日・開始より後。scheduledStart と必ず一緒に指定する。'
+const DUE_DATE_DESCRIPTION = '期日(YYYY-MM-DD)。予定(scheduledStart/End)とは別で、締切の日。'
+
 export const createTodoShape = {
   title: z.string().min(1).describe('TODOのタイトル(必須)'),
   description: z.string().optional().describe('詳細説明(任意)'),
   milestoneId: z.number().int().positive().nullable().optional().describe('紐づけるマイルストーンID'),
+  dueDate: z.string().min(1).optional().describe(DUE_DATE_DESCRIPTION),
+  scheduledStart: z.string().min(1).optional().describe(SCHEDULED_START_DESCRIPTION),
+  scheduledEnd: z.string().min(1).optional().describe(SCHEDULED_END_DESCRIPTION),
   workspacePath: z.string().min(1).optional().describe(WORKSPACE_PATH_DESCRIPTION),
   model: z.string().min(1).optional().describe(MODEL_DESCRIPTION),
 }
@@ -32,6 +43,19 @@ export const updateTodoShape = {
   title: z.string().min(1).optional(),
   description: z.string().optional(),
   milestoneId: z.number().int().positive().nullable().optional().describe('null で紐付け解除'),
+  dueDate: z.string().min(1).nullable().optional().describe(`${DUE_DATE_DESCRIPTION} null で期日を外す。`),
+  scheduledStart: z
+    .string()
+    .min(1)
+    .nullable()
+    .optional()
+    .describe(`${SCHEDULED_START_DESCRIPTION} 両方 null で予定を外す。`),
+  scheduledEnd: z
+    .string()
+    .min(1)
+    .nullable()
+    .optional()
+    .describe(`${SCHEDULED_END_DESCRIPTION} 両方 null で予定を外す。`),
   workspacePath: z
     .string()
     .min(1)
@@ -129,6 +153,9 @@ export function createTodo(
     title: string
     description?: string
     milestoneId?: number | null
+    dueDate?: string
+    scheduledStart?: string
+    scheduledEnd?: string
     workspacePath?: string
     model?: string
   }
@@ -143,6 +170,9 @@ export function updateTodo(
     title?: string
     description?: string
     milestoneId?: number | null
+    dueDate?: string | null
+    scheduledStart?: string | null
+    scheduledEnd?: string | null
     workspacePath?: string | null
     model?: string | null
   }

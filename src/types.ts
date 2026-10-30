@@ -114,6 +114,13 @@ export interface Todo {
   // Date-only string (YYYY-MM-DD), no timezone handling. null means no due
   // date is set.
   readonly dueDate: string | null
+  // 1日スケジュール(日表示)に置く予定の開始・終了。壁時計のローカル時刻
+  // "YYYY-MM-DDTHH:MM" で、due_date と同じくタイムゾーンを持たない(UTC の
+  // dispatched_at/completed_at とは別物)。必ず両方入るか両方 null で、同じ
+  // 日付・開始 < 終了(schemas.ts が検査する)。期日とは独立: 期日は締切、
+  // 予定は「いつ取り組むか」。
+  readonly scheduledStart: string | null
+  readonly scheduledEnd: string | null
   readonly workspacePath: string | null
   // Claude Code model alias (opus/sonnet/haiku/fable, or a config-extended
   // value — see modelValidation.ts) to launch with on dispatch. null means

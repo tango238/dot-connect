@@ -112,6 +112,8 @@ description: 依頼文・要件・メモを読んで作業を複数のTODOに分
    `update_todo` / `PATCH /api/todos/<id>` に `{"milestoneId": <id>}` を渡す。
 
 - MCP: `create_todo` に `title` `description` `model` `workspacePath`(必要なら `milestoneId`)を渡す。
+  依頼文に締切があれば `dueDate`(YYYY-MM-DD)、「10時から12時にやる」のように取り組む時間帯が
+  あれば `scheduledStart` / `scheduledEnd`(`YYYY-MM-DDTHH:MM`、必ずペア・同じ日)も渡す。
 - API:
   ```bash
   curl -s -X POST "$BASE/api/milestones" \

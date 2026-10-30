@@ -13,17 +13,21 @@ herdr上のClaude Code / Codex CLIセッションとして投入(dispatch)し、
 | --- | --- |
 | ![TODO詳細ダイアログ](docs/images/todo-detail.png) | ![マイルストーン](docs/images/milestones.png) |
 
-| 計画(マイルストーンのタイムライン) |
-| --- |
-| ![計画](docs/images/plan.png) |
+| スケジュール(1日の予定) | 計画(マイルストーンのタイムライン) |
+| --- | --- |
+| ![スケジュール](docs/images/schedule.png) | ![計画](docs/images/plan.png) |
 
 スクリーンショットのデータは `scripts/seed-demo.ts` で再現できる(手順は
 [デモデータ](#デモデータ)を参照)。
 
 ## 主な機能
 
-- **TODO**: 説明・優先度・期日・作業ディレクトリ・モデルを持つTODOの管理。
-  期限切れ/最近の更新での絞り込みと並び替え、詳細ダイアログ
+- **TODO**: 説明・優先度・期日・予定(開始/終了時刻)・作業ディレクトリ・
+  モデルを持つTODOの管理。期限切れ/最近の更新での絞り込みと並び替え、詳細
+  ダイアログ
+- **スケジュール**: Google カレンダーの日表示のように1日分だけを描く画面。
+  上段にその日が期日のTODOの一覧、下段に開始・終了時刻を設定したTODOを置く
+  0〜24時のタイムライン(下記)
 - **マイルストーン / ラベル**: マイルストーンごとの進捗表示、ラベルでの
   グルーピング
 - **herdrへの投入**: プロンプト(履歴・スニペット・`{{title}}` /
@@ -78,6 +82,26 @@ herdr上のClaude Code / Codex CLIセッションとして投入(dispatch)し、
   dot-connect 自身のディレクトリなので自動で承認する。このセッションは TODO に
   属さないため DB には記録せず、WIP にも数えない。終わったらユーザーが閉じる。
   スキルが未インストール(設定の「スキルをインストール」)のときは選べない。
+
+### スケジュール(1日の予定)
+
+サイドバーの「スケジュール」は、Google カレンダーの日表示のように**1日分だけ**を
+表示する。← → と日付入力で日を移動し、「今日」で戻る。
+
+- **期日(上段)**: その日が期日のTODOの一覧。カレンダーの「終日」欄に相当し、
+  タイムラインとは別に並べる(未完了→優先度→ID順)。クリックで詳細ダイアログ。
+- **タイムライン(下段)**: 0〜24時のグリッド。TODOの**予定**(開始時刻・終了
+  時刻、`scheduledStart` / `scheduledEnd`)をブロックとして置く。重なる予定は横に
+  並べ、今日を表示しているときは現在時刻の線を引く。ブロックのクリックで詳細
+  ダイアログ。
+- **予定を入れる**: 時間帯をクリックすると、その時刻から1時間の予定を入れる
+  フォームが開く。既存の未完了TODOを選ぶか、タイトルを入力して新しいTODOを作る。
+  TODOの新規フォーム・詳細ダイアログの編集でも「予定」(日付・開始・終了)を
+  設定でき、終了を空にすると開始の1時間後になる。
+
+予定は期日とは独立した値で、期日は締切、予定は「いつ取り組むか」。値は
+`YYYY-MM-DDTHH:MM` のローカル時刻(タイムゾーン無し)で、開始と終了は必ず
+ペアで指定し、同じ日・開始<終了でなければ 400 になる。両方 `null` で予定を外す。
 
 ### Grill(TODOを対話で詰める)
 
@@ -304,8 +328,8 @@ claude mcp add dot-connect \
 
 - TODO: `list_todos`(status/milestoneIdで絞り込み、各TODOに`workspacePath`と
   `model`を含む)、`create_todo`、`update_todo`(title/description/
-  milestoneId/workspacePath/model)、`complete_todo`、`reopen_todo`、
-  `delete_todo`
+  milestoneId/dueDate/scheduledStart/scheduledEnd/workspacePath/model)、
+  `complete_todo`、`reopen_todo`、`delete_todo`
 - マイルストーン: `list_milestones`、`create_milestone`、`update_milestone`、
   `complete_milestone`(未完了TODOが残っていると件数つきでエラーになる)、
   `reopen_milestone`、`delete_milestone`

@@ -1146,3 +1146,128 @@ describe('todo dueDate', () => {
     expect((await readJson(cleared)).data.dueDate).toBeNull()
   })
 })
+
+describe('todo schedule (scheduledStart / scheduledEnd)', () => {
+  const headers = { 'content-type': 'application/json' }
+
+  async function create(app: ReturnType<typeof createTestApp>['app'], body: object) {
+    return app.request('/api/todos', { method: 'POST', headers, body: JSON.stringify(body) })
+  }
+
+  test('作成時に開始・終了を設定できる', async () => {
+    const { app } = createTestApp()
+    const res = await create(app, {
+      title: 'x',
+      scheduledStart: '2026-10-30T10:00',
+      scheduledEnd: '2026-10-30T11:30',
+    })
+    expect(res.status).toBe(201)
+    const { data } = await readJson(res)
+    expect(data.scheduledStart).toBe('2026-10-30T10:00')
+    expect(data.scheduledEnd).toBe('2026-10-30T11:30')
+  })
+
+  test('省略時はどちらも null', async () => {
+    const { app } = createTestApp()
+    const { data } = await readJson(await create(app, { title: 'x' }))
+    expect(data.scheduledStart).toBeNull()
+    expect(data.scheduledEnd).toBeNull()
+  })
+
+  test('開始だけ・終了だけは 400(ペアで指定する)', async () => {
+    const { app } = createTestApp()
+    const startOnly = await create(app, { title: 'x', scheduledStart: '2026-10-30T10:00' })
+    expect(startOnly.status).toBe(400)
+    expect((await readJson(startOnly)).error).toContain('一緒に')
+    const endOnly = await create(app, { title: 'x', scheduledEnd: '2026-10-30T10:00' })
+    expect(endOnly.status).toBe(400)
+    const mixed = await create(app, { title: 'x', scheduledStart: '2026-10-30T10:00', scheduledEnd: null })
+    expect(mixed.status).toBe(400)
+  })
+
+  test('終了が開始以前なら 400', async () => {
+    const { app } = createTestApp()
+    const same = await create(app, { title: 'x', scheduledStart: '2026-10-30T10:00', scheduledEnd: '2026-10-30T10:00' })
+    expect(same.status).toBe(400)
+    expect((await readJson(same)).error).toContain('後')
+    const before = await create(app, { title: 'x', scheduledStart: '2026-10-30T10:00', scheduledEnd: '2026-10-30T09:00' })
+    expect(before.status).toBe(400)
+  })
+
+  test('日付をまたぐ予定は 400', async () => {
+    const { app } = createTestApp()
+    const res = await create(app, { title: 'x', scheduledStart: '2026-10-30T23:00', scheduledEnd: '2026-10-31T01:00' })
+    expect(res.status).toBe(400)
+    expect((await readJson(res)).error).toContain('同じ日')
+  })
+
+  test('形式違い・実在しない日時は 400', async () => {
+    const { app } = createTestApp()
+    for (const [start, end] of [
+      ['2026-10-30 10:00', '2026-10-30 11:00'],
+      ['2026-10-30T10:00:00', '2026-10-30T11:00:00'],
+      ['2026-02-30T10:00', '2026-02-30T11:00'],
+      ['2026-10-30T24:00', '2026-10-30T25:00'],
+      ['2026-10-30T10:60', '2026-10-30T11:00'],
+    ]) {
+      const res = await create(app, { title: 'x', scheduledStart: start, scheduledEnd: end })
+      expect(res.status).toBe(400)
+    }
+  })
+
+  test('PATCH で更新でき、両方 null でクリアできる', async () => {
+    const { app } = createTestApp()
+    const { data } = await readJson(
+      await create(app, { title: 'x', scheduledStart: '2026-10-30T10:00', scheduledEnd: '2026-10-30T11:00' })
+    )
+
+    const updated = await app.request(`/api/todos/${data.id}`, {
+      method: 'PATCH',
+      headers,
+      body: JSON.stringify({ scheduledStart: '2026-11-02T14:00', scheduledEnd: '2026-11-02T15:30' }),
+    })
+    expect(updated.status).toBe(200)
+    const after = (await readJson(updated)).data
+    expect(after.scheduledStart).toBe('2026-11-02T14:00')
+    expect(after.scheduledEnd).toBe('2026-11-02T15:30')
+
+    // 片方だけ動かすのは、保存済みの値との整合を取れないので弾く。
+    const partial = await app.request(`/api/todos/${data.id}`, {
+      method: 'PATCH',
+      headers,
+      body: JSON.stringify({ scheduledEnd: '2026-11-02T16:00' }),
+    })
+    expect(partial.status).toBe(400)
+
+    // 無関係な項目の PATCH は予定に触らない。
+    const untouched = await app.request(`/api/todos/${data.id}`, {
+      method: 'PATCH',
+      headers,
+      body: JSON.stringify({ title: 'renamed' }),
+    })
+    expect((await readJson(untouched)).data.scheduledStart).toBe('2026-11-02T14:00')
+
+    const cleared = await app.request(`/api/todos/${data.id}`, {
+      method: 'PATCH',
+      headers,
+      body: JSON.stringify({ scheduledStart: null, scheduledEnd: null }),
+    })
+    const gone = (await readJson(cleared)).data
+    expect(gone.scheduledStart).toBeNull()
+    expect(gone.scheduledEnd).toBeNull()
+  })
+
+  test('予定は期日と独立に持てる', async () => {
+    const { app } = createTestApp()
+    const { data } = await readJson(
+      await create(app, {
+        title: 'x',
+        dueDate: '2026-11-05',
+        scheduledStart: '2026-10-30T10:00',
+        scheduledEnd: '2026-10-30T11:00',
+      })
+    )
+    expect(data.dueDate).toBe('2026-11-05')
+    expect(data.scheduledStart).toBe('2026-10-30T10:00')
+  })
+})

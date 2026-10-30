@@ -291,6 +291,37 @@ describe('legacy schema rebuild', () => {
     db.close()
   })
 
+  test('rebuild does not drop the scheduled_start/scheduled_end columns added by ensureColumn just before it', () => {
+    // Same trap as due_date before it: the legacy todos table pre-dates the
+    // schedule columns entirely, ensureColumn() adds them, and the FK rebuild
+    // right after must carry them through its CREATE/INSERT/SELECT lists.
+    createLegacySchema()
+    const seed = new Database(dbPath)
+    seed.exec('PRAGMA foreign_keys = ON')
+    seed.run(
+      `INSERT INTO milestones (title, start_date, target_date) VALUES ('M', '2026-01-01', '2026-02-01')`
+    )
+    const milestoneId = (seed.query('SELECT id FROM milestones').get() as { id: number }).id
+    seed.run(
+      `INSERT INTO todos (title, milestone_id, status, completed_at, completed_milestone_id) VALUES ('t1', ?, 'done', datetime('now'), ?)`,
+      [milestoneId, milestoneId]
+    )
+    seed.close()
+
+    const db = createDatabase(dbPath)
+    const todoId = (db.query('SELECT id FROM todos').get() as { id: number }).id
+    expect(todoRepo.getById(db, todoId)?.scheduledStart).toBeNull()
+    expect(todoRepo.getById(db, todoId)?.scheduledEnd).toBeNull()
+
+    const updated = todoRepo.update(db, todoId, {
+      scheduledStart: '2026-10-30T10:00',
+      scheduledEnd: '2026-10-30T11:00',
+    })
+    expect(updated?.scheduledStart).toBe('2026-10-30T10:00')
+    expect(updated?.scheduledEnd).toBe('2026-10-30T11:00')
+    db.close()
+  })
+
   test('rebuild does not drop the updated_at column added by ensureColumn just before it', () => {
     // Same trap as description/priority/model/due_date before it:
     // createLegacySchema()'s todos table pre-dates `updated_at` entirely.

@@ -21,6 +21,7 @@ import {
 } from './lib/pullRequest.js'
 import { commentDraftError, isCommentSubmitShortcut, normalizeCommentBody } from './lib/todoComment.js'
 import { buildModelEditPatch } from './lib/modelPatch.js'
+import { buildSchedulePatch, scheduleFields } from './lib/schedule.js'
 import { resolveModelSelectValue } from './lib/modelOptions.js'
 import { DEFAULT_MINUTES, MAX_MINUTES, formatRemaining, isActive, remainingMs } from './lib/pomodoro.js'
 import { detailRows, formatDateTime } from './lib/todoDetail.js'
@@ -59,6 +60,9 @@ const EDIT_FIELDS = {
   'detail-edit-desc': 'description',
   'detail-edit-priority': 'priority',
   'detail-edit-due': 'dueDate',
+  'detail-edit-sched-date': 'schedDate',
+  'detail-edit-sched-start': 'schedStart',
+  'detail-edit-sched-end': 'schedEnd',
   'detail-edit-ws': 'workspacePath',
   'detail-edit-model': 'model',
 }
@@ -102,6 +106,10 @@ function startEditing(todo) {
     workspacePath: todo.workspacePath ?? '',
     model: resolveModelSelectValue(todo.model, getState().models),
   }
+  const schedule = scheduleFields(todo)
+  editDraft.schedDate = schedule.date
+  editDraft.schedStart = schedule.start
+  editDraft.schedEnd = schedule.end
 }
 
 function editFormBlock() {
@@ -122,6 +130,16 @@ function editFormBlock() {
     <div class="form-field">
       <label for="detail-edit-due">期限(任意)</label>
       <input id="detail-edit-due" type="date" value="${escapeHtml(d.dueDate)}">
+    </div>
+    <div class="form-field">
+      <label for="detail-edit-sched-date">予定(任意)</label>
+      <div class="schedule-fields">
+        <input id="detail-edit-sched-date" type="date" aria-label="予定の日付" value="${escapeHtml(d.schedDate)}">
+        <input id="detail-edit-sched-start" type="time" step="300" aria-label="開始時刻" value="${escapeHtml(d.schedStart)}">
+        <span>–</span>
+        <input id="detail-edit-sched-end" type="time" step="300" aria-label="終了時刻" value="${escapeHtml(d.schedEnd)}">
+      </div>
+      <p class="field-hint">スケジュール画面の1日タイムラインに置く時間帯。期日とは別です。全部空にすると予定を外します。</p>
     </div>
     <div class="form-field grow">
       <label for="detail-edit-ws">作業ディレクトリ(任意)</label>
@@ -146,6 +164,15 @@ async function saveEdit() {
     showDialogError('#detail-edit-error', 'タイトルは必須です')
     return
   }
+  const schedule = buildSchedulePatch({
+    date: editDraft.schedDate,
+    start: editDraft.schedStart,
+    end: editDraft.schedEnd,
+  })
+  if (schedule.error) {
+    showDialogError('#detail-edit-error', schedule.error)
+    return
+  }
   const todoId = detailTodoId
   const draft = editDraft
   busy = true
@@ -156,6 +183,7 @@ async function saveEdit() {
       description: draft.description.trim(),
       priority: draft.priority,
       dueDate: draft.dueDate || null,
+      ...schedule,
       ...buildWorkspacePathEditPatch(draft.workspacePath),
       ...buildModelEditPatch(draft.model),
     })

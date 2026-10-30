@@ -91,6 +91,29 @@ describe('todoTools CRUD passthrough', () => {
     expect(calls).toEqual([{ method: 'PATCH', path: '/api/todos/7', body: { title: 'renamed' } }])
   })
 
+  test('createTodo / updateTodo forward dueDate and the schedule pair untouched', async () => {
+    const created = fakeClient(() => ({ id: 1 }))
+    await todoTools.createTodo(created.client, {
+      title: 'x',
+      dueDate: '2026-11-05',
+      scheduledStart: '2026-10-30T10:00',
+      scheduledEnd: '2026-10-30T11:00',
+    })
+    expect(created.calls[0]?.body).toEqual({
+      title: 'x',
+      dueDate: '2026-11-05',
+      scheduledStart: '2026-10-30T10:00',
+      scheduledEnd: '2026-10-30T11:00',
+    })
+
+    // null で予定を外す(両方 null)。
+    const updated = fakeClient(() => ({ id: 7 }))
+    await todoTools.updateTodo(updated.client, { id: 7, scheduledStart: null, scheduledEnd: null })
+    expect(updated.calls).toEqual([
+      { method: 'PATCH', path: '/api/todos/7', body: { scheduledStart: null, scheduledEnd: null } },
+    ])
+  })
+
   test('completeTodo POSTs to /api/todos/:id/complete', async () => {
     const { client, calls } = fakeClient(() => ({ id: 7, status: 'done' }))
     await todoTools.completeTodo(client, { id: 7 })

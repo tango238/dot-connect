@@ -10,6 +10,7 @@ import { wipMeter } from './lib/wipLimit.js'
 import { hasOpenMilestoneForm, initMilestones, renderMilestones, renderSideMilestones } from './milestones.js'
 import { initPromptDialog } from './promptDialog.js'
 import { ensureReportLoaded, initReport, regenerateLatestReport, renderReport } from './report.js'
+import { initDay, renderDay } from './day.js'
 import { initPlan, renderPlan } from './plan.js'
 import { initPomodoro, refreshPomodoroLabel } from './pomodoro.js'
 import { applyUploadDir, initSettingsDialog, openSettingsDialog } from './settingsDialog.js'
@@ -25,6 +26,7 @@ const PR_REFRESH_MS = 5 * 60_000
 
 const PAGE_RENDERERS = {
   todos: renderTodos,
+  day: renderDay,
   milestones: renderMilestones,
   plan: renderPlan,
   report: renderReport,
@@ -155,6 +157,7 @@ async function bootstrap() {
   initNav()
   initTodos()
   initMilestones()
+  initDay()
   initPlan()
   initReport()
   initPromptDialog()

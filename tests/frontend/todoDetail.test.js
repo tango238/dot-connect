@@ -90,6 +90,8 @@ describe('detailRows', () => {
         status: 'done',
         priority: 'high',
         dueDate: '2026-09-30',
+        scheduledStart: '2026-09-28T10:00',
+        scheduledEnd: '2026-09-28T11:30',
         model: 'opus',
         sessionState: 'working',
         herdrPaneId: 'w1:p1',
@@ -103,6 +105,7 @@ describe('detailRows', () => {
     expect(labels(rows)).toEqual([
       'ステータス',
       '期限',
+      '予定',
       '優先度',
       'セッション',
       '作業ディレクトリ',
@@ -133,6 +136,19 @@ describe('detailRows', () => {
     expect(valueOf(detailRows(todo({ dueDate: '2026-08-05' }), 'UTC', '2026-08-07'), '期限')).toBe(
       '8/5 (2日超過)'
     )
+  })
+
+  test('予定があれば「予定」行を日付と時間帯で出し、無ければ出さない', () => {
+    const rows = detailRows(
+      todo({ scheduledStart: '2026-09-28T10:00', scheduledEnd: '2026-09-28T11:30' }),
+      'UTC',
+      '2026-08-07'
+    )
+    expect(valueOf(rows, '予定')).toBe('9/28 10:00–11:30')
+    expect(rows.find((r) => r.label === '予定')?.mono).toBe(true)
+    expect(labels(detailRows(todo({ scheduledStart: null, scheduledEnd: null }), 'UTC'))).not.toContain('予定')
+    // 片方だけ(フィールド追加前の行や壊れた値)は予定として扱わない
+    expect(labels(detailRows(todo({ scheduledStart: '2026-09-28T10:00' }), 'UTC'))).not.toContain('予定')
   })
 
   test('期限が無ければ行を出さない', () => {

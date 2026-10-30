@@ -11,6 +11,7 @@ import { shouldRestoreCapturedForm } from './lib/formCapture.js'
 import { modelBadge } from './lib/modelBadge.js'
 import { buildModelCreatePatch } from './lib/modelPatch.js'
 import { priorityBadge } from './lib/priorityBadge.js'
+import { buildSchedulePatch, formatSchedule } from './lib/schedule.js'
 import { pullRequestCount } from './lib/pullRequest.js'
 import { SESSION_LABEL } from './lib/todoDetail.js'
 import { BUCKET_LABEL, isRecentlyCompleted, matchesFilter, todoBucket } from './lib/todoFilter.js'
@@ -61,6 +62,14 @@ function prioBadge(todo) {
   const badge = priorityBadge(todo.priority)
   if (!badge) return ''
   return `<span class="prio-badge ${badge.className}">${badge.label}</span>`
+}
+
+// スケジュールに置いた時間帯。期日バッジと同じく、完了した TODO では出さない。
+function scheduleBadgeHtml(todo) {
+  if (todo.status === 'done') return ''
+  const label = formatSchedule(todo)
+  if (!label) return ''
+  return `<span class="sched-badge" title="予定">◷ ${escapeHtml(label)}</span>`
 }
 
 // Only shown when a todo overrides the default model — the common case
@@ -169,7 +178,7 @@ function todoRow(todo) {
     <div class="todo-main">
       <div class="todo-title" role="button" tabindex="0" data-action="open-todo-detail" data-id="${todo.id}" title="クリックで詳細を表示"><span class="todo-id">#${todo.id}</span> ${escapeHtml(todo.title)}</div>
       ${descLine}
-      <div class="todo-meta">${dueBadgeHtml(todo)}${prioBadge(todo)}${reviewBadge(todo)}${modelBadgeHtml(todo)}${prCountBadge(todo)}${msChip(todo)}${sessBadge(todo)}<span class="todo-date">${escapeHtml(todo.workspacePath ?? '')}</span></div>
+      <div class="todo-meta">${dueBadgeHtml(todo)}${scheduleBadgeHtml(todo)}${prioBadge(todo)}${reviewBadge(todo)}${modelBadgeHtml(todo)}${prCountBadge(todo)}${msChip(todo)}${sessBadge(todo)}<span class="todo-date">${escapeHtml(todo.workspacePath ?? '')}</span></div>
     </div>
     <div class="todo-actions">${todoActions(todo)}</div>
   </div>`
@@ -262,6 +271,16 @@ function renderNewTodoForm() {
     <div class="form-field">
       <label for="new-todo-due">期限(任意)</label>
       <input id="new-todo-due" type="date">
+    </div>
+    <div class="form-field">
+      <label for="new-todo-sched-date">予定(任意)</label>
+      <div class="schedule-fields">
+        <input id="new-todo-sched-date" type="date" aria-label="予定の日付">
+        <input id="new-todo-sched-start" type="time" step="300" aria-label="開始時刻">
+        <span>–</span>
+        <input id="new-todo-sched-end" type="time" step="300" aria-label="終了時刻">
+      </div>
+      <p class="field-hint">スケジュール画面の1日タイムラインに置く時間帯。期日とは別です。終了を空にすると開始の1時間後になります。</p>
     </div>
     <div class="form-field grow">
       <label for="new-todo-ws">作業ディレクトリ(任意)</label>
@@ -380,6 +399,15 @@ async function createTodo() {
   // 空欄は「期限なし」。作成時は null を送っても省略しても同じだが、更新と
   // 同じ形にしておく。
   const dueRaw = $('#new-todo-due').value
+  const schedule = buildSchedulePatch({
+    date: $('#new-todo-sched-date').value,
+    start: $('#new-todo-sched-start').value,
+    end: $('#new-todo-sched-end').value,
+  })
+  if (schedule.error) {
+    toastError(schedule.error)
+    return
+  }
   const wsRaw = $('#new-todo-ws').value
   const modelRaw = $('#new-todo-model').value
   try {
@@ -389,6 +417,7 @@ async function createTodo() {
       milestoneId: msRaw ? Number(msRaw) : null,
       priority,
       dueDate: dueRaw || null,
+      ...schedule,
       ...buildWorkspacePathCreatePatch(wsRaw),
       ...buildModelCreatePatch(modelRaw),
     })
@@ -474,6 +503,9 @@ function captureOpenFormValues() {
       ms: $('#new-todo-ms')?.value,
       priority: $('#new-todo-priority')?.value,
       due: $('#new-todo-due')?.value,
+      schedDate: $('#new-todo-sched-date')?.value,
+      schedStart: $('#new-todo-sched-start')?.value,
+      schedEnd: $('#new-todo-sched-end')?.value,
       ws: $('#new-todo-ws')?.value,
       model: $('#new-todo-model')?.value,
     })
@@ -502,6 +534,9 @@ function restoreOpenFormValues(captured) {
       setFieldValue('new-todo-ms', entry.ms)
       setFieldValue('new-todo-priority', entry.priority)
       setFieldValue('new-todo-due', entry.due)
+      setFieldValue('new-todo-sched-date', entry.schedDate)
+      setFieldValue('new-todo-sched-start', entry.schedStart)
+      setFieldValue('new-todo-sched-end', entry.schedEnd)
       setFieldValue('new-todo-ws', entry.ws)
       setFieldValue('new-todo-model', entry.model)
     }

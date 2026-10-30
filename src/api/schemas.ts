@@ -109,25 +109,99 @@ const nullableModel = z
 // undefined は据え置き、null は期限解除(workspacePath / model と同じ規約)。
 const nullableDueDate = z.union([dateString, z.null()]).optional()
 
-export const createTodoSchema = z.object({
-  title: z.string().trim().min(1).max(TITLE_MAX_LENGTH),
-  description: todoDescription.optional(),
-  milestoneId: z.number().int().positive().nullable().optional(),
-  priority: todoPriority.optional(),
-  dueDate: nullableDueDate,
-  workspacePath: nullableWorkspacePath,
-  model: nullableModel,
-})
+// 1日スケジュールに置く予定の開始・終了: "YYYY-MM-DDTHH:MM" のローカル壁時計
+// 時刻(タイムゾーン無し、秒無し)。due_date と同じく文字列比較で前後を判定
+// できる形に揃えている。<input type="datetime-local"> の値そのもの。
+const LOCAL_DATETIME_PATTERN = /^(\d{4}-\d{2}-\d{2})T(\d{2}):(\d{2})$/
 
-export const updateTodoSchema = z.object({
-  title: z.string().trim().min(1).max(TITLE_MAX_LENGTH).optional(),
-  description: todoDescription.optional(),
-  milestoneId: z.number().int().positive().nullable().optional(),
-  priority: todoPriority.optional(),
-  dueDate: nullableDueDate,
-  workspacePath: nullableWorkspacePath,
-  model: nullableModel,
-})
+// zod 4 は regex が落ちた後もこの refine を走らせるので、形が合わないときは
+// ここで静かに false を返す(regex 側のメッセージが出る)。
+function isRealLocalDateTime(value: string): boolean {
+  const match = LOCAL_DATETIME_PATTERN.exec(value)
+  if (!match) {
+    return false
+  }
+  const [, date, hour, minute] = match as unknown as [string, string, string, string]
+  return isRealCalendarDate(date) && Number(hour) <= 23 && Number(minute) <= 59
+}
+
+const localDateTimeString = z
+  .string()
+  .regex(LOCAL_DATETIME_PATTERN, 'Expected YYYY-MM-DDTHH:MM')
+  .refine(isRealLocalDateTime, 'Not a real date and time')
+
+const nullableScheduledAt = z.union([localDateTimeString, z.null()]).optional()
+
+export const SCHEDULE_PAIR_MESSAGE = '予定は開始と終了を一緒に指定してください'
+export const SCHEDULE_SAME_DAY_MESSAGE = '予定の開始と終了は同じ日にしてください'
+export const SCHEDULE_ORDER_MESSAGE = '予定の終了は開始より後にしてください'
+
+interface ScheduleFields {
+  scheduledStart?: string | null
+  scheduledEnd?: string | null
+}
+
+// 予定は常にペアで扱う: 片方だけの指定(PATCH で片方だけ動かす、作成時に
+// 開始だけ入れる)は受け付けない。保存済みの値と突き合わせずにここだけで
+// 一貫性を保証できるのは、この「両方同時」の規則があるから。日表示は 1日分
+// しか描かないので日付をまたぐ予定も弾く。
+function scheduleIssue(data: ScheduleFields): { message: string; path: string[] } | null {
+  const start = data.scheduledStart
+  const end = data.scheduledEnd
+  if (start === undefined && end === undefined) {
+    return null
+  }
+  if (start === undefined || end === undefined || (start === null) !== (end === null)) {
+    return { message: SCHEDULE_PAIR_MESSAGE, path: ['scheduledEnd'] }
+  }
+  if (start === null || end === null) {
+    return null
+  }
+  if (start.slice(0, 10) !== end.slice(0, 10)) {
+    return { message: SCHEDULE_SAME_DAY_MESSAGE, path: ['scheduledEnd'] }
+  }
+  if (end <= start) {
+    return { message: SCHEDULE_ORDER_MESSAGE, path: ['scheduledEnd'] }
+  }
+  return null
+}
+
+function withScheduleCheck<T extends z.ZodType<ScheduleFields>>(schema: T): T {
+  return schema.superRefine((data, ctx) => {
+    const issue = scheduleIssue(data)
+    if (issue) {
+      ctx.addIssue({ code: 'custom', message: issue.message, path: issue.path })
+    }
+  }) as unknown as T
+}
+
+export const createTodoSchema = withScheduleCheck(
+  z.object({
+    title: z.string().trim().min(1).max(TITLE_MAX_LENGTH),
+    description: todoDescription.optional(),
+    milestoneId: z.number().int().positive().nullable().optional(),
+    priority: todoPriority.optional(),
+    dueDate: nullableDueDate,
+    scheduledStart: nullableScheduledAt,
+    scheduledEnd: nullableScheduledAt,
+    workspacePath: nullableWorkspacePath,
+    model: nullableModel,
+  })
+)
+
+export const updateTodoSchema = withScheduleCheck(
+  z.object({
+    title: z.string().trim().min(1).max(TITLE_MAX_LENGTH).optional(),
+    description: todoDescription.optional(),
+    milestoneId: z.number().int().positive().nullable().optional(),
+    priority: todoPriority.optional(),
+    dueDate: nullableDueDate,
+    scheduledStart: nullableScheduledAt,
+    scheduledEnd: nullableScheduledAt,
+    workspacePath: nullableWorkspacePath,
+    model: nullableModel,
+  })
+)
 
 export const createMilestoneSchema = z
   .object({

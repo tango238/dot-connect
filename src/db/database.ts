@@ -191,6 +191,11 @@ const ADDITIVE_COLUMNS: readonly { table: string; column: string; definition: st
   // 値が入り、Grilled で確定・取り消し・完了・削除のいずれかで NULL に戻る
   // (grillService.ts 参照)。
   { table: 'todos', column: 'grill_dir', definition: 'TEXT' },
+  // 1日スケジュールに置く予定の開始・終了("YYYY-MM-DDTHH:MM" のローカル
+  // 時刻、タイムゾーン無し)。両方 NULL が「予定なし」。片方だけ入ることは
+  // ない(schemas.ts が両方同時の指定を要求する)。期日 due_date とは独立。
+  { table: 'todos', column: 'scheduled_start', definition: 'TEXT' },
+  { table: 'todos', column: 'scheduled_end', definition: 'TEXT' },
 ]
 
 // bun:sqlite's { create: true } creates the DB *file* but not missing parent

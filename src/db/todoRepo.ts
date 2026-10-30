@@ -23,6 +23,8 @@ interface TodoRow {
   status: TodoStatus
   priority: TodoPriority
   due_date: string | null
+  scheduled_start: string | null
+  scheduled_end: string | null
   workspace_path: string | null
   herdr_workspace_id: string | null
   herdr_tab_id: string | null
@@ -44,6 +46,7 @@ const SELECT_WITH_MILESTONE = `
     t.status, t.priority, t.workspace_path,
     t.herdr_workspace_id, t.herdr_tab_id, t.herdr_pane_id,
     t.session_state, t.dispatched_at, t.completed_at, t.completed_milestone_id, t.model, t.due_date,
+    t.scheduled_start, t.scheduled_end,
     t.created_at, t.updated_at, t.grill_dir
   FROM todos t
   LEFT JOIN milestones m ON m.id = t.milestone_id
@@ -80,6 +83,8 @@ function mapRow(
     status: row.status,
     priority: row.priority,
     dueDate: row.due_date,
+    scheduledStart: row.scheduled_start,
+    scheduledEnd: row.scheduled_end,
     workspacePath: row.workspace_path,
     herdrWorkspaceId: row.herdr_workspace_id,
     herdrTabId: row.herdr_tab_id,
@@ -136,6 +141,11 @@ export interface CreateTodoInput {
   readonly milestoneId?: number | null
   readonly priority?: TodoPriority
   readonly dueDate?: string | null
+  // 両方入れるか両方省くか(schemas.ts が保証する)。片方だけ渡されたら、
+  // 渡されなかった方は null になる —— 予定は常にペアで読む前提なので、
+  // 半端な行を作らないよう呼び出し側で揃えること。
+  readonly scheduledStart?: string | null
+  readonly scheduledEnd?: string | null
   readonly workspacePath?: string | null
   readonly model?: string | null
 }
@@ -143,7 +153,7 @@ export interface CreateTodoInput {
 export function create(db: Database, input: CreateTodoInput): Todo {
   const result = db
     .query(
-      `INSERT INTO todos (title, description, milestone_id, priority, workspace_path, model, due_date) VALUES (?, ?, ?, ?, ?, ?, ?) RETURNING id`
+      `INSERT INTO todos (title, description, milestone_id, priority, workspace_path, model, due_date, scheduled_start, scheduled_end) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id`
     )
     .get(
       input.title,
@@ -152,7 +162,9 @@ export function create(db: Database, input: CreateTodoInput): Todo {
       input.priority ?? 'none',
       input.workspacePath ?? null,
       input.model ?? null,
-      input.dueDate ?? null
+      input.dueDate ?? null,
+      input.scheduledStart ?? null,
+      input.scheduledEnd ?? null
     ) as { id: number }
   const created = getById(db, result.id)
   if (!created) {
@@ -169,6 +181,10 @@ export interface UpdateTodoInput {
   // Same undefined/null convention as workspacePath/model below: undefined
   // leaves the stored due date untouched, null explicitly clears it.
   readonly dueDate?: string | null
+  // 予定の開始・終了。undefined は据え置き、null は予定の解除。片方だけの
+  // 更新は意味を持たない(常にペア)ので、API 層で両方同時の指定を要求する。
+  readonly scheduledStart?: string | null
+  readonly scheduledEnd?: string | null
   // undefined leaves the stored path untouched; null explicitly clears it
   // (same convention as milestoneId).
   readonly workspacePath?: string | null
@@ -204,6 +220,14 @@ export function update(db: Database, id: number, input: UpdateTodoInput): Todo |
   if (input.dueDate !== undefined) {
     sets.push('due_date = ?')
     values.push(input.dueDate)
+  }
+  if (input.scheduledStart !== undefined) {
+    sets.push('scheduled_start = ?')
+    values.push(input.scheduledStart)
+  }
+  if (input.scheduledEnd !== undefined) {
+    sets.push('scheduled_end = ?')
+    values.push(input.scheduledEnd)
   }
   if (input.workspacePath !== undefined) {
     sets.push('workspace_path = ?')

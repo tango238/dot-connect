@@ -66,9 +66,12 @@ function rebuildTodosTable(db: Database): void {
       due_date TEXT,
       created_at TEXT NOT NULL DEFAULT (datetime('now')),
       updated_at TEXT,
-      grill_dir TEXT
+      grill_dir TEXT,
+      scheduled_start TEXT,
+      scheduled_end TEXT
     )`)
-    // todos_old already has description, priority, model, AND grill_dir at this point:
+    // todos_old already has description, priority, model, grill_dir AND
+    // scheduled_start/scheduled_end at this point:
     // ensureColumn() for the additive columns always runs before
     // rebuildLegacyTables() in createDatabase(), regardless of which table
     // needed the rebuild. Both CREATE and INSERT column lists here must
@@ -79,11 +82,13 @@ function rebuildTodosTable(db: Database): void {
     db.exec(`INSERT INTO todos (
       id, title, description, milestone_id, status, priority, workspace_path,
       herdr_workspace_id, herdr_tab_id, herdr_pane_id,
-      session_state, dispatched_at, completed_at, completed_milestone_id, model, due_date, created_at, updated_at, grill_dir
+      session_state, dispatched_at, completed_at, completed_milestone_id, model, due_date, created_at, updated_at, grill_dir,
+      scheduled_start, scheduled_end
     ) SELECT
       id, title, description, milestone_id, status, priority, workspace_path,
       herdr_workspace_id, herdr_tab_id, herdr_pane_id,
-      session_state, dispatched_at, completed_at, completed_milestone_id, model, due_date, created_at, updated_at, grill_dir
+      session_state, dispatched_at, completed_at, completed_milestone_id, model, due_date, created_at, updated_at, grill_dir,
+      scheduled_start, scheduled_end
     FROM todos_old`)
     db.exec('DROP TABLE todos_old')
   })
