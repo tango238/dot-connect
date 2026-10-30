@@ -37,6 +37,10 @@ herdr上のClaude Code / Codex CLIセッションとして投入(dispatch)し、
 - **GitHub Issue の取り込み**: 「新規TODO」から、リポジトリ(`owner/repo` か
   GitHub の URL)を指定して Issue 一覧を `gh` で取得し、選んだ Issue を TODO
   として登録する(下記)
+- **herdr セッションからの紐づけ**: herdr 上で動いている Claude Code から
+  `/dot-connect` スキル(MCP `link_todo_session` / `POST /api/todos/:id/session`)で、
+  そのセッションを TODO の herdr セッションとして紐づける。以後は投入した
+  セッションと同じ扱い(「セッションを開く」・状態同期・WIP・完了時のclose)
 - **添付ファイル**: TODOへのファイル添付と、投入時に含める添付の選択
 - **作業ログ**: TODOごとのコメント(作業ログ)
 - **PullRequest紐付け**: GitHub PRのURLをTODOに紐付け、`gh` でタイトル・状態を
@@ -180,7 +184,8 @@ tests/           # bun:test。herdr/claude/実サーバーはすべてフェイ�
 持つリクエストがブラウザの同一オリジン制限(CSRF)なしにAPIへアクセスできる
 ようになる。ただし**アクセスできるのは todos / milestones / labels /
 workspaces の CRUDエンドポイント、TODOのPR紐付け
-(`/api/todos/:id/pull-requests` 配下)、`GET /api/models` のみ**(許可リスト
+(`/api/todos/:id/pull-requests` 配下)、herdr セッションの紐付け/解除
+(`POST`/`DELETE /api/todos/:id/session`)、`GET /api/models` のみ**(許可リスト
 方式。新しいエンドポイントが増えても、このリストに明示的に追加しない限り
 外部トークンからは使えない)。
 
@@ -188,7 +193,8 @@ workspaces の CRUDエンドポイント、TODOのPR紐付け
 があるため):
 - `POST /api/todos/:id/dispatch`(任意のディレクトリで任意のプロンプトの
   Claude Codeセッションを起動する。実質的にRCE)
-- `POST /api/todos/:id/open-session`(osascriptを実行する)
+- `POST /api/todos/:id/open-session`(osascriptを実行する。
+  なお紐付けだけを行う `POST /api/todos/:id/session` は起動を伴わないので許可している)
 - `POST /api/todos/:id/grill` / `POST /api/todos/:id/grilled`(Claude Code
   セッションの起動・終了)
 - `POST /api/reports/weekly/generate`(`claude -p` を実行してコストが発生する)
@@ -259,6 +265,14 @@ API/MCP経由の変更をHerdrセッションの有無に関係なく一覧と�
   使い分け)・`models.md`(モデルの選び方)を読んで提案し、登録結果を `history.md` に追記、
   ユーザーが直したモデル/ディレクトリはルールとして書き足す。設定ダイアログの
   「Finderで開く」で開いて直接編集できる(macOS のみ)。
+- **herdr セッションからの紐づけ**: herdr のペイン内で動いている Claude Code で
+  「このセッションを TODO #12 に紐づけて」「いまの作業を TODO にしてこのセッションを
+  紐づけて」と言うと、スキルがそのセッション(herdr がペインのプロセスに渡す
+  `HERDR_PANE_ID` / `HERDR_TAB_ID` / `HERDR_WORKSPACE_ID`)を TODO の herdr
+  セッションとして登録する(MCP なら `link_todo_session`、無ければ
+  `POST /api/todos/:id/session`)。既に別の TODO に紐づいている・TODO が別の生きた
+  セッションを持つ・WIP 上限などで断られたときは理由を伝えて止まり、ユーザーが
+  許したときだけ `unlink_todo_session` で紐づけを外してやり直す。
 
 ## MCPサーバー
 
@@ -301,6 +315,7 @@ claude mcp add dot-connect \
   おく入力補助リスト。詳細は後述)
 - PR紐付け: `add_todo_pull_request`、`refresh_todo_pull_request`、
   `remove_todo_pull_request`(詳細は後述)
+- herdr セッションの紐付け: `link_todo_session`、`unlink_todo_session`(詳細は後述)
 
 **PullRequestの紐付け**: 1つのTODOに複数のGitHub PRのURLを登録できる。
 URLは`https://github.com/{owner}/{repo}/pull/{number}`に正規化して保存される
@@ -354,6 +369,29 @@ dispatchが必要な場合は、dot-connectのWeb UIから直接操作するこ�
 安全側の作りとして、畳む直前に herdr へ実状態を問い合わせ、`idle` か `done`
 と**確認できたときだけ**閉じる —— `working`(処理中)と `blocked`(許可ダイア
 ログ待ち)、状態を確認できなかった場合は開いたまま残す。
+
+**`link_todo_session` / `unlink_todo_session`(herdr セッションの紐付け)**:
+dot-connect が開いたのではない、既に動いている herdr のペインを TODO の herdr
+セッションとして記録する。herdr はペイン内で起動したプロセスに
+`HERDR_WORKSPACE_ID` / `HERDR_TAB_ID` / `HERDR_PANE_ID` を渡し、Claude Code が
+起動する stdio MCP サーバーもそれを引き継ぐので、herdr 上の Claude Code からは
+`link_todo_session` に `id` だけ渡せば自分自身のペインが紐づく(ペイン外で動く
+MCP クライアントは `paneId` を明示する。`tabId`/`workspaceId` は指定すると
+herdr の実測値と照合され、食い違えば 400)。紐づけたセッションは投入した
+セッションと同じ扱いになる(「セッションを開く」・statusSync・WIP・削除時の
+ガード・`complete` 時の close)。`dispatched_at` は紐づけた時刻になるが、投入
+履歴(dispatch_events / プロンプト履歴 / 作業ディレクトリ履歴)には残さない。
+次のときは 409 で断る: ペインが herdr に無い(404)・herdr がそのペインで
+エージェントを検知していない(`agent_not_detected`)・別の TODO が同じペインを
+持っている(`pane_in_use`、相手の `todoId` 付き)・TODO が別の生きたセッションを
+持っている(`session_alive`。ペインが既に消えている古い紐付けなら上書きする)・
+完了済み(`todo_done`)・Grill 中(`grill_in_progress`)・WIP 上限
+(`wip_limit_reached`)。`unlink_todo_session` は紐付けだけを外し、herdr のペインは
+閉じない(付け間違いの訂正用)。
+
+紐付けは起動ではないので RCE ではないが、**外部クライアントが「`complete` で
+閉じられるペイン」を選べるようになる**点は `complete` の注意と合わせて読むこと。
+閉じる前の `idle`/`done` 確認は紐づけたセッションにも同じように効く。
 
 ## デスクトップアプリ(macOS / Windows)
 

@@ -3,10 +3,10 @@ import { Hono } from 'hono'
 import { dispatchTodo } from '../services/dispatchService'
 import { BadRequestError } from '../services/errors'
 import { finishGrill, type GrillOptions, grillRootFor, startGrill } from '../services/grillService'
-import { openSession } from '../services/sessionService'
+import { attachSession, detachSession, openSession } from '../services/sessionService'
 import type { AppDependencies } from './dependencies'
 import { handle, ok } from './response'
-import { dispatchRequestSchema, idParamSchema } from './schemas'
+import { attachSessionSchema, dispatchRequestSchema, idParamSchema } from './schemas'
 import { parseOrThrow } from './validation'
 
 const MACOS_ONLY_MESSAGE = 'この機能は macOS でのみ利用できます'
@@ -105,11 +105,37 @@ function openSessionHandler(deps: AppDependencies) {
   }
 }
 
+// herdr セッション側からの紐づけ(sessionService.attachSession)。herdr の
+// ペイン内で動く Claude Code が、自分の HERDR_PANE_ID を渡してくる想定。
+// 起動も osascript も伴わないので platform では絞らず、APIトークン/MCP から
+// も使える(apiTokenAuth.ts の許可リスト参照)。
+function attachSessionHandler(deps: AppDependencies) {
+  return async (c: Context) => {
+    return handle(c, async () => {
+      const { id } = parseOrThrow(idParamSchema, c.req.param())
+      const input = parseOrThrow(attachSessionSchema, await c.req.json())
+      const todo = await attachSession(deps.db, deps.herdr, id, input)
+      return ok(c, todo)
+    })
+  }
+}
+
+function detachSessionHandler(deps: AppDependencies) {
+  return async (c: Context) => {
+    return handle(c, async () => {
+      const { id } = parseOrThrow(idParamSchema, c.req.param())
+      return ok(c, detachSession(deps.db, id))
+    })
+  }
+}
+
 export function createTodoSessionRoutes(deps: AppDependencies): Hono {
   const app = new Hono()
 
   app.post('/:id/dispatch', dispatchTodoHandler(deps))
   app.post('/:id/open-session', openSessionHandler(deps))
+  app.post('/:id/session', attachSessionHandler(deps))
+  app.delete('/:id/session', detachSessionHandler(deps))
   app.post('/:id/grill', grillTodoHandler(deps))
   app.post('/:id/grilled', grilledTodoHandler(deps))
 

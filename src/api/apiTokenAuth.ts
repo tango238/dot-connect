@@ -62,6 +62,12 @@ const ALLOWED_ENDPOINTS: readonly AllowedEndpoint[] = [
   { method: 'POST', pattern: new RegExp(`^/api/todos/${ID}/complete$`) },
   { method: 'POST', pattern: new RegExp(`^/api/todos/${ID}/reopen$`) },
   { method: 'DELETE', pattern: new RegExp(`^/api/todos/${ID}$`) },
+  // herdr セッションの紐づけ/解除。起動(dispatch)ではなく、既に動いている
+  // ペインの ID を記録するだけなので、herdr のペイン内で動く Claude Code が
+  // MCP/トークン経由で自分自身を TODO に紐づけられるよう許可する。
+  // 紐づけた先は complete で閉じられうる(README「安全上の注意」)。
+  { method: 'POST', pattern: new RegExp(`^/api/todos/${ID}/session$`) },
+  { method: 'DELETE', pattern: new RegExp(`^/api/todos/${ID}/session$`) },
 
   // PR links are plain metadata on a todo (no code execution, unlike
   // dispatch), so the MCP server is allowed to manage them.

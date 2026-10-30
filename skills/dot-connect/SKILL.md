@@ -1,12 +1,14 @@
 ---
 name: dot-connect
-description: 依頼文・要件・メモを読んで作業を複数のTODOに分解し、各TODOのタイトル・詳細・LLMモデル・作業ディレクトリと、まとめ先のマイルストーン(新規または既存)を提案して、ユーザーの承認後にローカルの dot-connect(MCP または HTTP API)へ登録する。「dot-connect に登録して」「TODOに分解して」「タスクに切って dot-connect へ」「この依頼を TODO 化して」などと言われたとき、または依頼文を貼り付けて dot-connect への登録を求められたときに使う。登録結果と、ユーザーが直したモデル・作業ディレクトリは記録ファイルに残し、次回の提案に使う。
+description: 依頼文・要件・メモを読んで作業を複数のTODOに分解し、各TODOのタイトル・詳細・LLMモデル・作業ディレクトリと、まとめ先のマイルストーン(新規または既存)を提案して、ユーザーの承認後にローカルの dot-connect(MCP または HTTP API)へ登録する。「dot-connect に登録して」「TODOに分解して」「タスクに切って dot-connect へ」「この依頼を TODO 化して」などと言われたとき、または依頼文を貼り付けて dot-connect への登録を求められたときに使う。登録結果と、ユーザーが直したモデル・作業ディレクトリは記録ファイルに残し、次回の提案に使う。herdr 上で動いている Claude Code セッションから「このセッションを TODO に紐づけて」「いまの作業を dot-connect の TODO にしてこのセッションを紐づけて」と言われたときも使う(そのセッションを TODO の herdr セッションとして登録する)。
 ---
 
 # dot-connect: 依頼文を TODO に分解して登録する
 
 ローカルで動いている dot-connect に、依頼文から作った複数の TODO を登録する。
 **ユーザーの承認なしに登録しない。** 提案 → 承認(修正) → 登録 → 記録 の順で進める。
+
+依頼が「このセッションを TODO に紐づけて」なら、分解はせず **手順6** に進む(接続先の決め方は手順1と同じ)。
 
 ## 1. 接続先を決める
 
@@ -143,3 +145,43 @@ description: 依頼文・要件・メモを読んで作業を複数のTODOに分
   - 既存のルールと矛盾する場合は、追記せずに既存の行を書き換える。
 - ユーザーが書いた既存の内容は消さない・並べ替えない。
 - 何を記録したかを最後に1〜2行で伝える(設定画面の「Finderで開く」から編集できることも添える)。
+
+## 6. herdr セッションから TODO を紐づける
+
+herdr のペイン内で動いているこの Claude Code セッションを、dot-connect の TODO の
+**herdr セッション**として登録する。紐づけると dot-connect 側で「セッションを開く」・
+状態の同期・WIP の数え方・完了時のワークスペース close が、dot-connect から投入した
+セッションと同じように効く。
+
+使うとき: 「このセッションを TODO #12 に紐づけて」「いまやっている作業を TODO にして、
+このセッションを紐づけて」など。手順3の分解・提案はしない(新規に作るなら1件だけ)。
+手順1〜5で TODO を一括登録しているセッション(作業ディレクトリが記録ファイル置き場)は
+作業セッションではないので、頼まれても紐づけず、その旨を伝える。
+
+1. **herdr のペイン内か確かめる**: `echo "$HERDR_PANE_ID $HERDR_TAB_ID $HERDR_WORKSPACE_ID"`。
+   空なら herdr のセッションではないので、紐づけられないことを伝えて止める。
+2. **紐づけ先の TODO を決める**:
+   - 番号やタイトルが指定されていれば `list_todos` / `GET /api/todos` で、実在し未完了で、
+     まだ別のセッションを持っていない(`herdrPaneId` が null)ことを確かめる。候補が複数なら並べて選ばせる。
+   - 「この作業を TODO にして」なら、会話の内容からタイトル・詳細(手順3の表の基準)と
+     作業ディレクトリ(このセッションの cwd、`pwd`)を1件分提案し、承認後に
+     `create_todo` / `POST /api/todos` で作る。モデルは付けない(既に動いているセッションなので)。
+     マイルストーンは頼まれなければ付けない。
+3. **紐づける**(TODO の ID が決まったら、確認は不要。ユーザーの依頼そのものだから):
+   - MCP: `link_todo_session` に `id` だけ渡す。paneId は MCP サーバーが環境変数から取る。
+     「ペインIDが分かりません」と返ったら、手順1で得た値を `paneId` `tabId` `workspaceId` に渡す。
+   - API:
+     ```bash
+     curl -s -X POST "$BASE/api/todos/<id>/session" \
+       -H "Origin: $BASE" -H "Content-Type: application/json" \
+       -d "$(jq -n --arg p "$HERDR_PANE_ID" --arg t "$HERDR_TAB_ID" --arg w "$HERDR_WORKSPACE_ID" \
+             '{paneId:$p, tabId:$t, workspaceId:$w}')"
+     ```
+   - 409 が返ったら理由をそのまま伝えて止める(`pane_in_use`: このセッションは別の TODO に
+     紐づき済み / `session_alive`: その TODO は別の生きたセッションを持つ / `wip_limit_reached` /
+     完了済み / Grill 中)。**勝手に外さない。** 外してよいと言われたときだけ
+     `unlink_todo_session` / `DELETE /api/todos/<id>/session` で紐づけを外して(ペインは閉じない)やり直す。
+4. **報告する**: TODO の ID とタイトル、「以後この TODO を完了にすると、このワークスペースが
+   閉じられる(処理中・許可待ちのときは閉じない)」ことを一言添える。
+   `history.md` には `- <日付> #<id> <タイトル> | linked: herdr session | dir: <cwd>` を1行追記する
+   (手順5と同じファイル。新規作成した TODO は手順5の形式の行も書く)。

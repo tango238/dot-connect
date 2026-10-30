@@ -171,6 +171,17 @@ export const weekStartQuerySchema = z.object({
   weekStart: dateString,
 })
 
+// herdr の workspace/tab/pane ID。形式は herdr 側の都合で決まるので
+// 中身は見ず、空と極端な長さだけ弾く。paneId だけが必須: tab/workspace は
+// herdr のスナップショットから引けるので、指定されたときは照合に使うだけ。
+const herdrId = z.string().trim().min(1).max(200)
+
+export const attachSessionSchema = z.object({
+  paneId: herdrId,
+  tabId: herdrId.optional(),
+  workspaceId: herdrId.optional(),
+})
+
 export const idParamSchema = z.object({
   id: z.coerce.number().int().positive(),
 })

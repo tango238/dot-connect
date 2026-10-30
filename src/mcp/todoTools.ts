@@ -48,6 +48,35 @@ export const updateTodoShape = {
 
 export const idOnlyShape = { id: z.number().int().positive() }
 
+// herdr は自分のペイン内で起動したプロセスに HERDR_WORKSPACE_ID / HERDR_TAB_ID /
+// HERDR_PANE_ID を渡す。Claude Code が起動する stdio MCP サーバー(このプロセス)
+// もそれを引き継ぐので、herdr のペイン内で動く Claude Code からは引数無しで
+// 「いま自分がいるセッション」を紐づけられる。
+export const HERDR_PANE_ID_ENV = 'HERDR_PANE_ID'
+export const HERDR_TAB_ID_ENV = 'HERDR_TAB_ID'
+export const HERDR_WORKSPACE_ID_ENV = 'HERDR_WORKSPACE_ID'
+
+export const NO_HERDR_PANE_MESSAGE =
+  `herdr のペインIDが分かりません。この MCP サーバーは herdr のペイン内で起動されていない(環境変数 ${HERDR_PANE_ID_ENV} が無い)ので、` +
+  'シェルで `echo $HERDR_PANE_ID` を実行して得た値を paneId に渡してください'
+
+export const linkTodoSessionShape = {
+  id: z.number().int().positive().describe('紐づけるTODOのID'),
+  paneId: z
+    .string()
+    .min(1)
+    .optional()
+    .describe(
+      `herdr のペインID。省略時は環境変数 ${HERDR_PANE_ID_ENV}(herdr のペイン内で起動された Claude Code から呼ばれていれば自動で入る)。`
+    ),
+  tabId: z.string().min(1).optional().describe(`herdr のタブID(任意。省略時は ${HERDR_TAB_ID_ENV}。herdr の実測値と照合するだけ)`),
+  workspaceId: z
+    .string()
+    .min(1)
+    .optional()
+    .describe(`herdr のワークスペースID(任意。省略時は ${HERDR_WORKSPACE_ID_ENV}。herdr の実測値と照合するだけ)`),
+}
+
 export const addPullRequestShape = {
   id: z.number().int().positive().describe('PRを紐付けるTODOのID'),
   url: z
@@ -120,6 +149,59 @@ export function updateTodo(
 ) {
   const { id, ...body } = args
   return runTool(() => client.request('PATCH', `/api/todos/${id}`, body))
+}
+
+export interface LinkTodoSessionArgs {
+  id: number
+  paneId?: string
+  tabId?: string
+  workspaceId?: string
+}
+
+function envValue(env: NodeJS.ProcessEnv, key: string): string | undefined {
+  const value = env[key]?.trim()
+  return value !== undefined && value.length > 0 ? value : undefined
+}
+
+// Resolves the herdr identifiers from args first, then from the environment
+// herdr injects into its panes. Exported for tests; the server passes
+// process.env.
+export function resolveHerdrSessionIds(
+  args: Omit<LinkTodoSessionArgs, 'id'>,
+  env: NodeJS.ProcessEnv
+): { paneId: string; tabId?: string; workspaceId?: string } | null {
+  const paneId = args.paneId ?? envValue(env, HERDR_PANE_ID_ENV)
+  if (paneId === undefined) {
+    return null
+  }
+  // tab/workspace from the env only make sense alongside the env's own pane
+  // id — an explicit paneId for some other pane must not be checked against
+  // this process's tab/workspace.
+  const fromEnv = args.paneId === undefined
+  return {
+    paneId,
+    tabId: args.tabId ?? (fromEnv ? envValue(env, HERDR_TAB_ID_ENV) : undefined),
+    workspaceId: args.workspaceId ?? (fromEnv ? envValue(env, HERDR_WORKSPACE_ID_ENV) : undefined),
+  }
+}
+
+export function linkTodoSession(
+  client: DotConnectClient,
+  args: LinkTodoSessionArgs,
+  env: NodeJS.ProcessEnv = process.env
+) {
+  return runTool(async () => {
+    const { id, ...rest } = args
+    const ids = resolveHerdrSessionIds(rest, env)
+    if (ids === null) {
+      throw new Error(NO_HERDR_PANE_MESSAGE)
+    }
+    return client.request('POST', `/api/todos/${id}/session`, ids)
+  })
+}
+
+export function unlinkTodoSession(client: DotConnectClient, args: { id: number }) {
+  return runTool(() => client.request('DELETE', `/api/todos/${args.id}/session`))
 }
 
 export function completeTodo(client: DotConnectClient, args: { id: number }) {

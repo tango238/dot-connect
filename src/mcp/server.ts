@@ -71,6 +71,24 @@ function registerTodoTools(server: McpServer, client: DotConnectClient): void {
     (args) => todoTools.deleteTodo(client, args)
   )
   server.registerTool(
+    'link_todo_session',
+    {
+      description:
+        '既に動いている herdr のセッション(ペイン)を TODO の herdr セッションとして紐づける。herdr のペイン内で起動された Claude Code から呼ぶと、paneId を省略しても自分自身のペイン(環境変数 HERDR_PANE_ID)が紐づく。紐づけると dot-connect 側で「セッションを開く」・状態同期・WIP の数え方・完了時の close が投入したセッションと同じように効く。ペインが herdr に無い/エージェント未検知、別TODOに紐づき済み、TODO が完了済み・Grill 中・別の生きたセッション持ち、WIP 上限到達のときはエラー。',
+      inputSchema: todoTools.linkTodoSessionShape,
+    },
+    (args) => todoTools.linkTodoSession(client, args)
+  )
+  server.registerTool(
+    'unlink_todo_session',
+    {
+      description:
+        'TODO から herdr セッションの紐づけだけを外す(herdr のペインは閉じない)。link_todo_session で付け間違えたときの訂正用。紐づいていなければ何もせず TODO を返す。',
+      inputSchema: todoTools.idOnlyShape,
+    },
+    (args) => todoTools.unlinkTodoSession(client, args)
+  )
+  server.registerTool(
     'add_todo_pull_request',
     {
       description:

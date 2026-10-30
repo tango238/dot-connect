@@ -231,3 +231,58 @@ describe('pull request tools', () => {
     ])
   })
 })
+
+describe('todoTools.linkTodoSession', () => {
+  const herdrEnv = { HERDR_PANE_ID: 'w1:p1', HERDR_TAB_ID: 'w1:t1', HERDR_WORKSPACE_ID: 'w1' }
+
+  test('posts the pane/tab/workspace ids herdr injected into the environment', async () => {
+    const { client, calls } = fakeClient(() => ({ id: 7, herdrPaneId: 'w1:p1' }))
+    const result = await todoTools.linkTodoSession(client, { id: 7 }, herdrEnv)
+    expect(result.isError).toBeUndefined()
+    expect(calls).toEqual([
+      {
+        method: 'POST',
+        path: '/api/todos/7/session',
+        body: { paneId: 'w1:p1', tabId: 'w1:t1', workspaceId: 'w1' },
+      },
+    ])
+  })
+
+  test('an explicit paneId wins and the environment tab/workspace are NOT attached to it', async () => {
+    const { client, calls } = fakeClient(() => ({}))
+    await todoTools.linkTodoSession(client, { id: 7, paneId: 'w5:p2' }, herdrEnv)
+    expect(calls[0]?.body).toEqual({ paneId: 'w5:p2', tabId: undefined, workspaceId: undefined })
+  })
+
+  test('explicit tabId/workspaceId are passed through alongside an explicit paneId', async () => {
+    const { client, calls } = fakeClient(() => ({}))
+    await todoTools.linkTodoSession(client, { id: 7, paneId: 'w5:p2', tabId: 'w5:t1', workspaceId: 'w5' }, {})
+    expect(calls[0]?.body).toEqual({ paneId: 'w5:p2', tabId: 'w5:t1', workspaceId: 'w5' })
+  })
+
+  test('outside a herdr pane (no HERDR_PANE_ID) it fails with guidance instead of calling the API', async () => {
+    const { client, calls } = fakeClient(() => ({}))
+    const result = await todoTools.linkTodoSession(client, { id: 7 }, { HERDR_PANE_ID: '  ' })
+    expect(result.isError).toBe(true)
+    expect(textOf(result)).toBe(todoTools.NO_HERDR_PANE_MESSAGE)
+    expect(calls).toEqual([])
+  })
+
+  test('surfaces the API error message verbatim', async () => {
+    const { client } = fakeClient(() => {
+      throw new DotConnectApiError('このherdrセッションは既に TODO #3 「x」に紐づいています')
+    })
+    const result = await todoTools.linkTodoSession(client, { id: 7 }, herdrEnv)
+    expect(result.isError).toBe(true)
+    expect(textOf(result)).toContain('#3')
+  })
+})
+
+describe('todoTools.unlinkTodoSession', () => {
+  test('sends DELETE /api/todos/:id/session', async () => {
+    const { client, calls } = fakeClient(() => ({ id: 7, herdrPaneId: null }))
+    const result = await todoTools.unlinkTodoSession(client, { id: 7 })
+    expect(result.isError).toBeUndefined()
+    expect(calls).toEqual([{ method: 'DELETE', path: '/api/todos/7/session', body: undefined }])
+  })
+})

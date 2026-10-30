@@ -265,3 +265,29 @@ describe('todoRepo updated_at', () => {
     expect(todoRepo.getById(db, todo.id)?.updatedAt).not.toBeNull()
   })
 })
+
+describe('todoRepo.attachSession / findByHerdrPaneId', () => {
+  test('attachSession stores the ids and the given state and stamps dispatched_at', () => {
+    const todo = todoRepo.create(db, { title: 'x' })
+    const result = todoRepo.attachSession(
+      db,
+      todo.id,
+      { herdrWorkspaceId: 'w1', herdrTabId: 'w1:t1', herdrPaneId: 'w1:p1' },
+      'blocked'
+    )
+    expect(result.herdrWorkspaceId).toBe('w1')
+    expect(result.herdrTabId).toBe('w1:t1')
+    expect(result.herdrPaneId).toBe('w1:p1')
+    expect(result.sessionState).toBe('blocked')
+    expect(result.dispatchedAt).not.toBeNull()
+  })
+
+  test('findByHerdrPaneId returns the owning todo, or null', () => {
+    const a = todoRepo.create(db, { title: 'a' })
+    todoRepo.create(db, { title: 'b' })
+    todoRepo.markDispatched(db, a.id, { herdrWorkspaceId: 'w1', herdrTabId: 'w1:t1', herdrPaneId: 'w1:p1' })
+    expect(todoRepo.findByHerdrPaneId(db, 'w1:p1')?.id).toBe(a.id)
+    expect(todoRepo.findByHerdrPaneId(db, 'w1:p2')).toBeNull()
+  })
+})
+

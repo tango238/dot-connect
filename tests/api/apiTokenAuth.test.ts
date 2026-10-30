@@ -344,3 +344,30 @@ describe('isAllowedForApiToken', () => {
     expect(isAllowedForApiToken('GET', '/api/todos/1/some-new-subroute')).toBe(false)
   })
 })
+
+describe('isAllowedForApiToken (herdr session linking)', () => {
+  // Linking records the id of an already-running pane; it launches nothing,
+  // so the MCP server (running inside a herdr pane) may use it. Everything
+  // else that touches herdr (dispatch/open-session/grill/sync) stays blocked.
+  test('allows linking and unlinking a todo’s herdr session', () => {
+    expect(isAllowedForApiToken('POST', '/api/todos/42/session')).toBe(true)
+    expect(isAllowedForApiToken('DELETE', '/api/todos/42/session')).toBe(true)
+  })
+
+  test('does not widen to the other session endpoints', () => {
+    expect(isAllowedForApiToken('GET', '/api/todos/42/session')).toBe(false)
+    expect(isAllowedForApiToken('POST', '/api/todos/42/open-session')).toBe(false)
+    expect(isAllowedForApiToken('POST', '/api/todos/42/session/x')).toBe(false)
+  })
+})
+
+describe('isAllowedForApiToken: GitHub issue import stays browser-only', () => {
+  // gh reaches GitHub on the server's behalf, so neither endpoint is
+  // reachable with an API token (see githubIssuesRoutes.ts).
+  test.each([
+    ['GET', '/api/github/issues'],
+    ['POST', '/api/github/issues/import'],
+  ])('%s %s is denied', (method, path) => {
+    expect(isAllowedForApiToken(method, path)).toBe(false)
+  })
+})

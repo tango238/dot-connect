@@ -39,13 +39,19 @@ function wipTodoIds(db: Database): number[] {
 
 /**
  * todoId を新たに投入してよいか確かめ、上限に達していれば ConflictError。
+ * action はメッセージの動詞(既定「投入」。セッションの紐づけでは「紐づけ」)。
  *
  * inFlight は投入処理の途中(workspace 作成待ち等)にある TODO。DB にまだ
  * セッションが記録されていない投入も枠を使うものとして数えないと、並行した
  * 投入が揃って上限チェックを通り抜けてしまう。投入しようとしている TODO
  * 自身は数えない(既に枠を持っているなら、再投入しても増えない)。
  */
-export function assertWipAvailable(db: Database, todoId: number, inFlight: Iterable<number> = []): void {
+export function assertWipAvailable(
+  db: Database,
+  todoId: number,
+  inFlight: Iterable<number> = [],
+  action: string = '投入'
+): void {
   const { enabled, limit } = resolveWipLimit(db)
   if (!enabled) {
     return
@@ -54,7 +60,7 @@ export function assertWipAvailable(db: Database, todoId: number, inFlight: Itera
   occupied.delete(todoId)
   if (occupied.size >= limit) {
     throw new ConflictError(
-      `WIP制限(${limit}件)に達しているため投入できません。実行中のTODOを完了にするか削除してください`,
+      `WIP制限(${limit}件)に達しているため${action}できません。実行中のTODOを完了にするか削除してください`,
       { code: 'wip_limit_reached', wip: { count: occupied.size, limit } }
     )
   }

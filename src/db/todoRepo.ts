@@ -282,6 +282,36 @@ export function markDispatched(db: Database, id: number, info: DispatchInfo): To
   return todo
 }
 
+// 既に動いている herdr のペインを TODO のセッションとして記録する(herdr
+// セッション側から「このセッションをこの TODO に紐づけて」と頼まれたとき。
+// sessionService.attachSession 参照)。markDispatched と違って、ペインは
+// dot-connect が作ったものではないので状態は herdr の実測値をそのまま入れる。
+// dispatched_at は「セッションが付いた時刻」として埋める —— statusSync の
+// 起動直後の猶予判定と、詳細ダイアログの「投入」行がこれを見るため。
+export function attachSession(db: Database, id: number, info: DispatchInfo, state: SessionState): Todo {
+  db.run(
+    `UPDATE todos SET
+       herdr_workspace_id = ?, herdr_tab_id = ?, herdr_pane_id = ?,
+       session_state = ?, dispatched_at = datetime('now'),
+       updated_at = datetime('now')
+     WHERE id = ?`,
+    [info.herdrWorkspaceId, info.herdrTabId, info.herdrPaneId, state, id]
+  )
+  const todo = getById(db, id)
+  if (!todo) {
+    throw new Error(`Failed to load todo ${id} after attaching a session`)
+  }
+  return todo
+}
+
+// 同じペインを2つの TODO が持たないようにするための逆引き。
+export function findByHerdrPaneId(db: Database, paneId: string): Todo | null {
+  const row = db
+    .query(`${SELECT_WITH_MILESTONE} WHERE t.herdr_pane_id = ? LIMIT 1`)
+    .get(paneId) as TodoRow | null
+  return row ? getById(db, row.id) : null
+}
+
 export function updateSessionState(db: Database, id: number, state: SessionState): void {
   // statusSync は状態が実際に変わったときしかここを呼ばないので、最終更新に
   // 数えても背景同期のたびに並びが揺れることはない。
