@@ -1,4 +1,4 @@
-// The 新規TODO button's two ways of creating TODOs. Pure, so which option is
+// The 新規TODO button's three ways of creating TODOs. Pure, so which option is
 // offered (and why one is greyed out) stays unit-testable like the other
 // modules under lib/.
 
@@ -20,7 +20,7 @@ export function skillSessionDisabledReason({ capabilities, settings }) {
 }
 
 /**
- * @returns {Array<{action: 'form' | 'skill-session', label: string, hint: string, disabled: boolean, title?: string}>}
+ * @returns {Array<{action: 'form' | 'github-issues' | 'skill-session', label: string, hint: string, disabled: boolean, title?: string}>}
  */
 export function newTodoMenuItems({ capabilities, settings }) {
   const skillReason = skillSessionDisabledReason({ capabilities, settings })
@@ -29,6 +29,14 @@ export function newTodoMenuItems({ capabilities, settings }) {
       action: 'form',
       label: '1件を入力して登録',
       hint: 'タイトル・説明などをフォームで入力',
+      disabled: false,
+    },
+    {
+      // Needs `gh` on the server, which is not probed up front: the dialog
+      // shows gh's own reason if the list can't be fetched.
+      action: 'github-issues',
+      label: 'GitHub Issue から取り込み',
+      hint: 'リポジトリの Issue 一覧から選んで TODO にする',
       disabled: false,
     },
     {

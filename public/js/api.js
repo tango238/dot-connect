@@ -59,6 +59,18 @@ export const api = {
     request('POST', `/api/todos/${id}/pull-requests/${prId}/refresh`),
   deleteTodoPullRequest: (id, prId) => request('DELETE', `/api/todos/${id}/pull-requests/${prId}`),
   refreshStalePullRequests: () => request('POST', '/api/pull-requests/refresh-stale'),
+  // GitHub Issue → TODO. `repo` is "owner/repo" or a github.com URL. The
+  // list is read through `gh` on the server; a gh failure is a 502 whose
+  // `error` carries gh's own reason (`code: 'gh_failed'`). The import
+  // returns `{ repo, created: Todo[], failed: [{ number, error }] }`.
+  listGithubIssues: ({ repo, state, search, limit }) => {
+    const params = new URLSearchParams({ repo })
+    if (state) params.set('state', state)
+    if (search) params.set('search', search)
+    if (limit) params.set('limit', String(limit))
+    return request('GET', `/api/github/issues?${params}`)
+  },
+  importGithubIssues: (input) => request('POST', '/api/github/issues/import', input),
   // Both return the updated todo, for the same reason as the PR calls above.
   // The field name matches what the upload route reads off the form.
   uploadTodoAttachment: (id, file) => {

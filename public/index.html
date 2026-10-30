@@ -685,6 +685,29 @@ h1 { font-size: 20px; font-weight: 700; }
 .label-row-main strong { font-size: 13px; }
 .label-row-actions { display: flex; gap: 6px; flex-shrink: 0; }
 
+/* ---------- GitHub issue import ---------- */
+.modal-wide { max-width: 760px; }
+.modal-sub code { font-family: var(--mono); font-size: 11.5px; }
+.issue-list { border: 1px solid var(--border); border-radius: 8px; max-height: 42vh; overflow-y: auto; margin: 6px 0 12px; }
+.issue-list .prompt-panel-empty { padding: 12px; }
+.issue-list-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; font-size: 12px; color: var(--text-dim); margin-top: 8px; min-height: 24px; }
+.issue-row { display: flex; gap: 10px; align-items: flex-start; padding: 8px 10px; border-top: 1px solid var(--border); cursor: pointer; }
+.issue-row:first-child { border-top: none; }
+.issue-row:hover { background: var(--bg-hover); }
+.issue-row input { margin-top: 3px; flex-shrink: 0; accent-color: var(--accent); }
+.issue-row.is-imported { opacity: .55; cursor: default; }
+.issue-row-main { flex: 1; min-width: 0; }
+.issue-row-title { font-size: 13px; overflow-wrap: anywhere; }
+.issue-row-meta { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; font-size: 11.5px; color: var(--text-faint); margin-top: 3px; }
+/* The label's GitHub color arrives as --chip-color; mixing the text toward the
+   theme's own text color keeps a dark label legible on the dark theme and a
+   pale one legible on the light theme. */
+.issue-label { font-size: 10.5px; padding: 1px 7px; border-radius: 999px; font-weight: 600;
+  color: color-mix(in srgb, var(--chip-color) 60%, var(--text)); background: color-mix(in srgb, var(--chip-color) 22%, transparent); }
+.issue-imported { color: var(--text-dim); font-weight: 600; }
+.issue-link { color: var(--text-dim); text-decoration: none; }
+.issue-link:hover { color: var(--accent); }
+
 /* ---------- responsive ---------- */
 @media (max-width: 768px) {
   .shell { flex-direction: column; }
@@ -884,6 +907,66 @@ h1 { font-size: 20px; font-weight: 700; }
     <div class="prompt-panel" id="workspace-history-list"></div>
   </div>
 </div>
+
+<div class="modal-backdrop" id="issue-import-backdrop" hidden>
+  <div class="modal modal-wide" id="issue-import-modal" role="dialog" aria-label="GitHub Issue から取り込み">
+    <div class="modal-head">
+      <h2>GitHub Issue から取り込み</h2>
+      <button type="button" class="btn btn-ghost" data-action="close-issue-import" aria-label="閉じる">×</button>
+    </div>
+    <p class="modal-sub">リポジトリの Issue を <code>gh</code> で一覧し、選んだものを TODO にします。TODO の説明の1行目に Issue の URL が入ります。</p>
+    <form class="inline-form" id="issue-import-search" style="align-items:flex-end">
+      <div class="form-field grow">
+        <label for="ii-repo">リポジトリ</label>
+        <input id="ii-repo" type="text" list="issue-repo-datalist" placeholder="owner/repo または https://github.com/owner/repo" autocomplete="off">
+      </div>
+      <div class="form-field">
+        <label for="ii-state">状態</label>
+        <select id="ii-state">
+          <option value="open">Open</option>
+          <option value="closed">Closed</option>
+          <option value="all">すべて</option>
+        </select>
+      </div>
+      <div class="form-field grow">
+        <label for="ii-search">検索(任意)</label>
+        <input id="ii-search" type="text" placeholder="例: label:bug login">
+      </div>
+      <div class="form-actions">
+        <button type="submit" class="btn btn-accent" id="ii-load">一覧を取得</button>
+      </div>
+      <div class="form-error" id="ii-error" hidden></div>
+    </form>
+    <div class="issue-list-head" id="issue-import-list-head"></div>
+    <div class="issue-list" id="issue-import-list"></div>
+    <div class="inline-form" style="align-items:flex-end">
+      <div class="form-field grow">
+        <label for="ii-milestone">マイルストーン</label>
+        <select id="ii-milestone"><option value="">未紐付け</option></select>
+      </div>
+      <div class="form-field">
+        <label for="ii-priority">優先度</label>
+        <select id="ii-priority"></select>
+      </div>
+      <div class="form-field grow">
+        <label for="ii-ws">作業ディレクトリ(任意)</label>
+        <input id="ii-ws" type="text" list="workspace-datalist" placeholder="例: /Users/you/projects/my-app">
+      </div>
+      <div class="form-field">
+        <label for="ii-model">モデル(任意)</label>
+        <select id="ii-model"></select>
+      </div>
+    </div>
+    <p class="field-hint">ここで選んだマイルストーン・優先度・作業ディレクトリ・モデルは、取り込むすべての TODO に付きます。</p>
+    <div class="modal-footer">
+      <button type="button" class="btn btn-accent" id="ii-import" data-action="import-issues" disabled>取り込む Issue を選んでください</button>
+      <button type="button" class="btn btn-ghost" data-action="close-issue-import">キャンセル</button>
+    </div>
+  </div>
+</div>
+<!-- Repositories listed before (localStorage), most recent first — see
+     lib/issueImport.js. -->
+<datalist id="issue-repo-datalist"></datalist>
 
 <!-- Populated from state.workspaces (see todos.js's renderWorkspaceDatalist)
      and referenced by every workspacePath <input list="workspace-datalist">

@@ -22,6 +22,7 @@ import { buildWorkspacePathCreatePatch } from './lib/workspacePathPatch.js'
 import { openActionMenu, openLinkMenu } from './linkMenu.js'
 import { openPromptDialog } from './promptDialog.js'
 import { openWorkspaceManager } from './workspaceManager.js'
+import { openIssueImportDialog } from './issueImportDialog.js'
 import { activeMilestones, getState, setState } from './state.js'
 import { isEditingTodoDetail, openTodoDetail } from './todoDetailDialog.js'
 import { modelOptions, priorityOptions } from './todoFormOptions.js'
@@ -528,9 +529,9 @@ export function initTodos() {
     })
   })
 
-  // 新規TODO は2通り: フォームで1件登録するか、/dot-connect スキルの
-  // セッションを開いて依頼文から複数まとめて登録するか。フォームが開いて
-  // いるときは、ボタンはそれを閉じるだけ。
+  // 新規TODO は3通り: フォームで1件登録するか、GitHub の Issue 一覧から選んで
+  // 取り込むか、/dot-connect スキルのセッションを開いて依頼文から複数まとめて
+  // 登録するか。フォームが開いているときは、ボタンはそれを閉じるだけ。
   $('#new-todo-toggle').addEventListener('click', (ev) => {
     const form = $('#new-todo-form')
     if (!form.hidden) {
@@ -549,6 +550,8 @@ export function initTodos() {
         if (action === 'form') {
           form.hidden = false
           renderNewTodoForm()
+        } else if (action === 'github-issues') {
+          openIssueImportDialog()
         } else if (action === 'skill-session') {
           void withButtonBusy(toggleBtn, startSkillSession)
         }

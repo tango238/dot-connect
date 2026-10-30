@@ -34,6 +34,9 @@ herdr上のClaude Code / Codex CLIセッションとして投入(dispatch)し、
 - **プロンプトから複数登録**: 「新規TODO」から、dot-connect スキル
   (`/dot-connect`)を打ち込んだ Claude Code セッションを herdr に開き、依頼文を
   複数のTODOに分解して登録する(下記)
+- **GitHub Issue の取り込み**: 「新規TODO」から、リポジトリ(`owner/repo` か
+  GitHub の URL)を指定して Issue 一覧を `gh` で取得し、選んだ Issue を TODO
+  として登録する(下記)
 - **添付ファイル**: TODOへのファイル添付と、投入時に含める添付の選択
 - **作業ログ**: TODOごとのコメント(作業ログ)
 - **PullRequest紐付け**: GitHub PRのURLをTODOに紐付け、`gh` でタイトル・状態を
@@ -42,12 +45,26 @@ herdr上のClaude Code / Codex CLIセッションとして投入(dispatch)し、
 - **ポモドーロタイマー**: TODOに紐付けた集中タイマー(終了時チャイム、音量調整)
 - **外部連携**: 許可リスト方式のAPIトークン認証、stdio MCPサーバー
 
-### 新規TODOの2つの作り方
+### 新規TODOの3つの作り方
 
-「＋ 新規TODO」を押すとメニューが開き、どちらかを選ぶ。
+「＋ 新規TODO」を押すとメニューが開き、いずれかを選ぶ。
 
 - **1件を入力して登録**: 従来のフォーム。タイトル・説明・マイルストーン・
   優先度・期日・作業ディレクトリ・モデルを入力して1件作る。
+- **GitHub Issue から取り込み**: リポジトリを `owner/repo` か GitHub の URL
+  (リポジトリ・Issue・ファイルのどれでもよい)で指定し、「一覧を取得」で
+  `gh issue list` の結果(状態 Open/Closed/すべて、`gh` の検索構文で絞り込み可、
+  最大200件)を一覧する。チェックした Issue が「取り込む」で1件ずつ TODO になる
+  (`gh issue view` で取り込み時点の内容を読む)。タイトルは Issue のタイトル、
+  説明は1行目が Issue の URL、空行を挟んで Issue 本文(TODO の上限 200/4000
+  文字に収まるよう末尾を切る)。ダイアログ下部で選んだマイルストーン・優先度・
+  作業ディレクトリ・モデルは取り込む全件に付く。説明に同じ Issue の URL を
+  持つ未完了 TODO があるものは「取り込み済み」としてチェックできない(その
+  TODO が完了済みなら再取り込みできる)。一部の Issue だけ失敗したときは
+  取り込めた分は登録し、失敗した番号と `gh` の理由をトーストで出して、失敗分を
+  チェックしたままダイアログを残す。`gh` が未インストール/未認証なら一覧の
+  取得時にその理由が表示される。一度一覧したリポジトリはブラウザに記憶し
+  (最大8件)、次回の入力候補になる。
 - **プロンプトから複数登録**: dot-connect が herdr にワークスペースを作り、
   スキルの記録ファイル置き場(`~/.local/dot-connect/notes`、
   `DOT_CONNECT_NOTES_DIR`)を作業ディレクトリにして Claude Code を起動し、入力欄に
@@ -120,7 +137,7 @@ bun run src/server.ts   # http://localhost:5757
 | `HERDR_BIN` | `herdr` | herdr CLIのパス |
 | `CLAUDE_BIN` | `claude` | claude CLIのパス |
 | `CODEX_BIN` | `codex` | Codex CLIのパス(モデルに `codex` を選んだ投入で使う) |
-| `GH_BIN` | `gh` | GitHub CLIのパス。TODOに紐付けたPRのタイトル・状態の取得にのみ使う(読み取り専用)。未インストール/未認証でもPR URLの登録自体は成功し、取得できなかった理由がそのPRに記録される |
+| `GH_BIN` | `gh` | GitHub CLIのパス。TODOに紐付けたPRのタイトル・状態の取得と、GitHub Issue の一覧・取り込み(`gh issue list` / `gh issue view`)に使う(いずれも読み取り専用)。未インストール/未認証でもPR URLの登録自体は成功し、取得できなかった理由がそのPRに記録される。Issue の一覧はその理由を表示して失敗する |
 | `TERMINAL_APP` | (未設定) | 設定時のみ open-session で osascript activate |
 | `HOST` | `127.0.0.1` | バインドアドレス。loopback (`127.0.0.1`/`localhost`/`::1`) 以外に変更する場合は `DOT_CONNECT_API_TOKEN` の設定が必須(未設定だと起動を拒否する) |
 | `DOT_CONNECT_API_TOKEN` | (未設定) | 外部からのAPIアクセス用トークン。未設定ならAPIトークン認証は無効(従来どおりブラウザの同一オリジンアクセスのみ) |
@@ -176,6 +193,8 @@ workspaces の CRUDエンドポイント、TODOのPR紐付け
   セッションの起動・終了)
 - `POST /api/reports/weekly/generate`(`claude -p` を実行してコストが発生する)
 - `POST /api/herdr/sync`
+- `GET /api/github/issues` / `POST /api/github/issues/import`(サーバー上の
+  `gh` で GitHub に問い合わせる)
 
 トークンが間違っている場合は401、許可されていないエンドポイントを叩いた
 場合は403が返る。トークンが正しい場合、Originが不正でも(=ブラウザ以外の

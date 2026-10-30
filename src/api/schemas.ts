@@ -273,6 +273,37 @@ export const updateSettingsSchema = z
     message: '変更する項目を指定してください',
   })
 
+// GitHub Issue の取り込み。repo は "owner/repo" か GitHub の URL——形の検査は
+// githubRepo.ts に任せ(どちらにせよ正規化が要る)、ここでは長さだけ見る。
+const REPO_SPEC_MAX_LENGTH = 500
+const ISSUE_SEARCH_MAX_LENGTH = 200
+// 一度に取り込める件数。1件ごとに gh を1回呼ぶので、上限は待ち時間の上限でもある。
+export const ISSUE_IMPORT_MAX_COUNT = 50
+
+const repoSpec = z.string().trim().min(1, 'リポジトリを指定してください').max(REPO_SPEC_MAX_LENGTH)
+
+export const listGithubIssuesQuerySchema = z.object({
+  repo: repoSpec,
+  state: z.enum(['open', 'closed', 'all']).optional(),
+  // クエリ文字列なので数値は文字で来る
+  limit: z.coerce.number().int().min(1).max(200).optional(),
+  search: z.string().trim().max(ISSUE_SEARCH_MAX_LENGTH).optional(),
+})
+
+export const importGithubIssuesSchema = z.object({
+  repo: repoSpec,
+  numbers: z
+    .array(z.number().int().positive())
+    .min(1, '取り込む Issue を選んでください')
+    .max(ISSUE_IMPORT_MAX_COUNT)
+    .refine((list) => new Set(list).size === list.length, '同じ Issue が重複しています'),
+  // 作成する TODO すべてに付ける値。規約は createTodoSchema と同じ。
+  milestoneId: z.number().int().positive().nullable().optional(),
+  priority: todoPriority.optional(),
+  workspacePath: nullableWorkspacePath,
+  model: nullableModel,
+})
+
 export const createPromptSnippetSchema = z.object({
   title: z.string().trim().min(1),
   body: z.string().trim().min(1).max(4000),

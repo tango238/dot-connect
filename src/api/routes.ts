@@ -4,6 +4,7 @@ import { apiTokenAuth } from './apiTokenAuth'
 import { createCapabilitiesRoutes } from './capabilitiesRoutes'
 import { csrfProtection } from './csrf'
 import type { AppDependencies } from './dependencies'
+import { createGithubIssuesRoutes } from './githubIssuesRoutes'
 import { createHerdrRoutes } from './herdrRoutes'
 import { createLabelsRoutes } from './labelsRoutes'
 import { createMilestonesRoutes } from './milestonesRoutes'
@@ -38,6 +39,9 @@ export function createApiRoutes(deps: AppDependencies): Hono {
   app.route('/todos', createTodoAttachmentRoutes(deps))
   app.route('/todos', createTodoCommentRoutes(deps))
   app.route('/pull-requests', createPullRequestsRoutes(deps))
+  // Browser-UI only (gh reaches GitHub on the server's behalf) — not in
+  // apiTokenAuth.ts's allowlist.
+  app.route('/github/issues', createGithubIssuesRoutes(deps))
   app.route('/milestones', createMilestonesRoutes(deps))
   app.route('/labels', createLabelsRoutes(deps))
   app.route('/reports', createReportsRoutes(deps))

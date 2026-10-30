@@ -3,6 +3,7 @@
 
 import { applyLiveSnapshot, loadLiveSnapshot, loadInitial, refreshHerdrStatus, refreshStalePullRequests, syncHerdrThenRefreshTodos } from './data.js'
 import { createLiveRefresh } from './lib/liveRefresh.js'
+import { initIssueImportDialog } from './issueImportDialog.js'
 import { initLabelManager } from './labelManager.js'
 import { isSidebarCollapsed, persistSidebarCollapsed } from './lib/sidebarState.js'
 import { wipMeter } from './lib/wipLimit.js'
@@ -162,6 +163,7 @@ async function bootstrap() {
   initSnippetManager()
   initLabelManager()
   initWorkspaceManager()
+  initIssueImportDialog()
   initPomodoro({ onOpenTodo: openTodoDetail })
 
   subscribe(() => {
