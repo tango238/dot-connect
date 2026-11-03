@@ -150,7 +150,8 @@ function todoActions(todo) {
   }
   // herdr への投入はここからはしない: TODO は Grill me → Grilled で内容を
   // 詰め、「目標に登録」で今週終わらせるタスク(目標ページ)に入れ、そこから
-  // 投入する(手動の「投入」か自動投入)。
+  // 投入する(手動の「投入」か自動投入)。Grilled 前は「Grill me」だけ、
+  // Grilled 後は「目標に登録」(登録済みなら「今週の目標」)だけが出る。
   const goal = weekGoalButton(todo, (getState().weekQueue?.todos ?? []).map((t) => t.id))
   const goalBtn = !goal
     ? ''

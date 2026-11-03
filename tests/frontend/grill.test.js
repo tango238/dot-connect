@@ -22,6 +22,9 @@ describe('grillButton', () => {
     expect(b.action).toBe('grill')
     expect(b.label).toBe('Grill me')
   })
+  test('a Grilled todo gets no Grill button (the row offers 目標に登録 instead)', () => {
+    expect(grillButton({ status: 'open', grillDir: null, sessionState: null, grilledAt: '2026-11-01 00:00:00' })).toBeNull()
+  })
   test('missing grillDir (older payload) behaves like null', () => {
     expect(grillButton({ status: 'open', sessionState: null }).action).toBe('grill')
   })
