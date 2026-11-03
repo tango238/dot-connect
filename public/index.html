@@ -336,7 +336,8 @@ h1 { font-size: 20px; font-weight: 700; }
 /* Grilled 済み(内容が詰まっている)TODO: 枠と背景をアクセント色で薄く塗って、
    「目標に登録」できる行だと分かるようにする。 */
 .todo.is-grilled { border-color: color-mix(in srgb, var(--accent) 55%, var(--border)); background: color-mix(in srgb, var(--accent) 7%, var(--bg-raise)); }
-.todo-week-tag { font-size: 11.5px; font-weight: 600; color: var(--accent); border: 1px solid color-mix(in srgb, var(--accent) 50%, transparent); border-radius: 6px; padding: 4px 9px; white-space: nowrap; align-self: center; }
+/* .btn と同じ寸法(文字サイズ・余白・枠)にして、隣の「Grill me」と高さと位置が揃うようにする。 */
+.todo-week-tag { display: inline-flex; align-items: center; font: inherit; font-size: 12.5px; font-weight: 600; color: var(--accent); border: 1px solid color-mix(in srgb, var(--accent) 50%, transparent); border-radius: 6px; padding: 5px 12px; white-space: nowrap; }
 .queue-dispatch { padding: 2px 9px; font-size: 12px; }
 .todo-check {
   width: 18px; height: 18px; margin-top: 3px; border-radius: 50%;
