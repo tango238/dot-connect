@@ -74,7 +74,8 @@ export function createReportsRoutes(deps: AppDependencies): Hono {
       let queued = 0
       for (const todoId of draft.todoIds) {
         const before = listQueue(deps.db, weekStart).todos.length
-        addToQueue(deps.db, weekStart, todoId)
+        // 生成で拾ったものは herdr に流す前提で入れる(Grill は後から通せる)。
+        addToQueue(deps.db, weekStart, todoId, true)
         if (listQueue(deps.db, weekStart).todos.length > before) queued++
       }
       return ok(c, { body: draft.body, queued, queue: listQueue(deps.db, weekStart) })
@@ -92,8 +93,8 @@ export function createReportsRoutes(deps: AppDependencies): Hono {
 
   app.post('/weekly/queue', async (c) => {
     return handle(c, async () => {
-      const { weekStart, todoId } = parseOrThrow(queueAddSchema, await c.req.json())
-      addToQueue(deps.db, weekStart, todoId)
+      const { weekStart, todoId, dispatch } = parseOrThrow(queueAddSchema, await c.req.json())
+      addToQueue(deps.db, weekStart, todoId, dispatch)
       return ok(c, listQueue(deps.db, weekStart), 201)
     })
   })

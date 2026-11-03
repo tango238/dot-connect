@@ -38,11 +38,12 @@ describe('isGrilled / weekGoalButton', () => {
     expect(isGrilled({ ...grilled, grilledAt: null })).toBe(false)
     expect(isGrilled(undefined)).toBe(false)
   })
-  test('offers 目標に登録 for a grilled open todo without a session, and the registered mark when already queued', () => {
+  test('offers 目標に登録 (herdr) for a grilled todo, 目標に登録 (self) for an ungrilled one, and the registered mark when queued', () => {
     expect(weekGoalButton(grilled, [])).toMatchObject({ registered: false, action: 'add-to-week', label: '目標に登録' })
     expect(weekGoalButton(grilled, [7])).toMatchObject({ registered: true, label: '今週の目標' })
     expect(weekGoalButton({ ...grilled, status: 'done' }, [])).toBeNull()
-    expect(weekGoalButton({ ...grilled, grilledAt: null }, [])).toBeNull()
+    expect(weekGoalButton({ ...grilled, grilledAt: null }, [])).toMatchObject({ registered: false, self: true, action: 'add-to-week', label: '目標に登録' })
+    expect(weekGoalButton({ ...grilled, grilledAt: null }, [7])).toMatchObject({ registered: true })
     expect(weekGoalButton({ ...grilled, sessionState: 'working' }, [])).toBeNull()
     expect(weekGoalButton({ ...grilled, grillDir: '/g' }, [])).toBeNull()
   })

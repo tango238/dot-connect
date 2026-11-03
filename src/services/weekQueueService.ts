@@ -37,15 +37,18 @@ export function setQueueDispatch(db: Database, weekStart: string, todoId: number
 }
 
 /**
- * 週に足す(既にあれば並びは変えない)。期日が無ければ週末を入れる。
+ * 週に足す(既にあれば並びも herdr の印も変えない)。期日が無ければ週末を入れる。
+ * dispatch(herdr に投入する対象か)を省くと、Grilled 済みなら true、Grill を
+ * 通していなければ false(自分でやるタスク)になる —— Grill 無しで登録できる
+ * のは herdr に流さないものだから。
  * @throws NotFoundError TODO が無いとき
  */
-export function addToQueue(db: Database, weekStart: string, todoId: number): Todo {
+export function addToQueue(db: Database, weekStart: string, todoId: number, dispatch?: boolean): Todo {
   const todo = todoRepo.getById(db, todoId)
   if (todo === null) {
     throw new NotFoundError(`Todo ${todoId} not found`)
   }
-  weekQueueRepo.add(db, weekStart, todoId)
+  weekQueueRepo.add(db, weekStart, todoId, dispatch ?? todo.grilledAt !== null)
   if (todo.dueDate === null) {
     return todoRepo.update(db, todoId, { dueDate: weekEndOf(weekStart) }) ?? todo
   }

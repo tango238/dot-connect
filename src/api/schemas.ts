@@ -268,7 +268,12 @@ export const saveGoalSchema = z.object({
 export const generateGoalSchema = z.object({ weekStart: dateString })
 
 // 「今週終わらせるタスク」の並び(weekQueueService.ts)。
-export const queueAddSchema = z.object({ weekStart: dateString, todoId: z.number().int().positive() })
+export const queueAddSchema = z.object({
+  weekStart: dateString,
+  todoId: z.number().int().positive(),
+  // herdr に投入する対象か。省略時は Grilled 済みなら true、そうでなければ false。
+  dispatch: z.boolean().optional(),
+})
 export const queueDispatchSchema = z.object({ weekStart: dateString, dispatch: z.boolean() })
 export const queueReorderSchema = z.object({
   weekStart: dateString,

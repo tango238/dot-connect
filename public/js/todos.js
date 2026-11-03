@@ -150,18 +150,19 @@ function todoActions(todo) {
   }
   // herdr への投入はここからはしない: TODO は Grill me → Grilled で内容を
   // 詰め、「目標に登録」で今週終わらせるタスク(目標ページ)に入れ、そこから
-  // 投入する(手動の「投入」か自動投入)。Grilled 前は「Grill me」だけ、
-  // Grilled 後は「目標に登録」(登録済みなら「今週の目標」)だけが出る。
+  // 投入する(手動の「投入」か自動投入)。Grilled 前は「Grill me」と、herdr に
+  // 流さない前提の控えめな「目標に登録」。Grilled 後は「目標に登録」(登録済み
+  // なら「今週の目標」)だけが出る。
   const goal = weekGoalButton(todo, (getState().weekQueue?.todos ?? []).map((t) => t.id))
   const goalBtn = !goal
     ? ''
     : goal.registered
       ? `<span class="todo-week-tag" title="${escapeHtml(goal.title)}">✓ ${goal.label}</span>`
-      : `<button class="btn btn-accent" data-action="${goal.action}" data-id="${todo.id}" title="${escapeHtml(goal.title)}">${goal.label}</button>`
+      : `<button class="btn ${goal.self ? '' : 'btn-accent'}" data-action="${goal.action}" data-id="${todo.id}" title="${escapeHtml(goal.title)}">${goal.label}</button>`
   const grillBtn = grill
     ? `<button class="btn" data-action="${grill.action}" data-id="${todo.id}" title="${escapeHtml(grill.title)}">${grill.label}</button>`
     : ''
-  return `${goalBtn}${grillBtn}${del}`
+  return `${grillBtn}${goalBtn}${del}`
 }
 
 function todoRow(todo) {
@@ -474,8 +475,9 @@ function handleListClick(ev) {
   } else if (action === 'add-to-week') {
     withButtonBusy(btn, async () => {
       try {
-        await addTodoToCurrentWeek(id)
-        toast('目標の「今週終わらせるタスク」に登録しました')
+        const data = await addTodoToCurrentWeek(id)
+        const entry = data.todos.find((t) => t.id === id)
+        toast(entry && entry.dispatch === false ? '自分でやるタスクとして今週の目標に登録しました(herdr には投入しません)' : '目標の「今週終わらせるタスク」に登録しました')
       } catch (err) {
         toastError(err.message)
       }

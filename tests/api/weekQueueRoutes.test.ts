@@ -37,16 +37,20 @@ describe('weekQueueRepo', () => {
 })
 
 describe('weekQueueService', () => {
-  test('addToQueue gives an undated todo the week end as due date and leaves an existing due date alone', () => {
+  test('addToQueue gives an undated todo the week end as due date, leaves an existing due date alone, and marks ungrilled todos as self-done', () => {
     const db = createDatabase(':memory:')
     const undated = todoRepo.create(db, { title: 'undated' })
     const dated = todoRepo.create(db, { title: 'dated', dueDate: '2026-08-10' })
+    todoRepo.markGrilled(db, dated.id)
     expect(addToQueue(db, WEEK, undated.id).dueDate).toBe('2026-07-26')
     expect(addToQueue(db, WEEK, dated.id).dueDate).toBe('2026-08-10')
     expect(() => addToQueue(db, WEEK, 999)).toThrow(/not found/)
     const queue = listQueue(db, WEEK)
     expect(queue).toMatchObject({ weekStart: WEEK, weekEnd: '2026-07-26' })
-    expect(queue.todos.map((t) => t.title)).toEqual(['undated', 'dated'])
+    expect(queue.todos.map((t) => [t.title, t.dispatch])).toEqual([['undated', false], ['dated', true]])
+    // 既に入っているものを足し直しても印は変わらない
+    addToQueue(db, WEEK, undated.id, true)
+    expect(listQueue(db, WEEK).todos[0]!.dispatch).toBe(false)
     expect(reorderQueue(db, WEEK, [dated.id]).todos.map((t) => t.title)).toEqual(['dated', 'undated'])
   })
 })
@@ -115,12 +119,19 @@ describe('PATCH /api/settings autoRun', () => {
 })
 
 describe('queue dispatch flag', () => {
-  test('defaults to true, PATCH toggles it per week, and the flag survives reorders', async () => {
+  test('defaults to Grilled-ness (or the explicit flag), PATCH toggles it per week, and the flag survives reorders', async () => {
     const { app, deps } = createTestApp()
     const a = todoRepo.create(deps.db, { title: 'a' })
     const b = todoRepo.create(deps.db, { title: 'b' })
+    const c = todoRepo.create(deps.db, { title: 'c' })
+    todoRepo.markGrilled(deps.db, a.id)
+    todoRepo.markGrilled(deps.db, b.id)
     await app.request('/api/reports/weekly/queue', json('POST', { weekStart: WEEK, todoId: a.id }))
     await app.request('/api/reports/weekly/queue', json('POST', { weekStart: WEEK, todoId: b.id }))
+    await app.request('/api/reports/weekly/queue', json('POST', { weekStart: WEEK, todoId: c.id, dispatch: true }))
+    const first = await app.request(`/api/reports/weekly/queue?weekStart=${WEEK}`)
+    expect((await readJson(first)).data.todos.map((t: { id: number; dispatch: boolean }) => [t.id, t.dispatch])).toEqual([[a.id, true], [b.id, true], [c.id, true]])
+    await app.request(`/api/reports/weekly/queue/${c.id}?weekStart=${WEEK}`, { method: 'DELETE' })
     const res = await app.request(`/api/reports/weekly/queue/${a.id}`, json('PATCH', { weekStart: WEEK, dispatch: false }))
     expect(res.status).toBe(200)
     expect((await readJson(res)).data.todos.map((t: { id: number; dispatch: boolean }) => [t.id, t.dispatch])).toEqual([[a.id, false], [b.id, true]])

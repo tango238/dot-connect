@@ -43,13 +43,13 @@ export function has(db: Database, weekStart: string, todoId: number): boolean {
   return row !== null
 }
 
-/** 末尾に足す。既にあれば何もしない(false)。 */
-export function add(db: Database, weekStart: string, todoId: number): boolean {
+/** 末尾に足す。既にあれば何もしない(false)。dispatch は herdr に投入する対象か。 */
+export function add(db: Database, weekStart: string, todoId: number, dispatch = true): boolean {
   if (has(db, weekStart, todoId)) return false
   const { next } = db
     .query(`SELECT COALESCE(MAX(position), -1) + 1 AS next FROM week_queue WHERE week_start = ?`)
     .get(weekStart) as { next: number }
-  db.run(`INSERT INTO week_queue (week_start, todo_id, position) VALUES (?, ?, ?)`, [weekStart, todoId, next])
+  db.run(`INSERT INTO week_queue (week_start, todo_id, position, dispatch) VALUES (?, ?, ?, ?)`, [weekStart, todoId, next, dispatch ? 1 : 0])
   return true
 }
 
