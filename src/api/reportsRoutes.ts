@@ -4,9 +4,11 @@ import * as weeklyGoalRepo from '../db/weeklyGoalRepo'
 import { formatLocalDate, mostRecentMonday } from '../services/localDate'
 import { generateWeeklyReport } from '../services/reportService'
 import { computeWeeklyStats } from '../services/reportStatsService'
+import { buildWeeklyGoalDraft } from '../services/weeklyGoalDraftService'
 import type { AppDependencies } from './dependencies'
 import { fail, handle, ok } from './response'
 import {
+  generateGoalSchema,
   generateReportSchema,
   optionalWeekStartQuerySchema,
   saveGoalSchema,
@@ -52,6 +54,16 @@ export function createReportsRoutes(deps: AppDependencies): Hono {
     return handle(c, async () => {
       const input = parseOrThrow(saveGoalSchema, await c.req.json())
       return ok(c, weeklyGoalRepo.upsert(deps.db, input.weekStart, input.body.trim()))
+    })
+  })
+
+  // 「目標を生成」: その週に期限のあるマイルストーン・TODO と優先度の高い
+  // ものから Markdown の下書きを作って返す。保存はしない(tidy と同じく、
+  // 画面側が入力欄に入れてから POST /weekly/goal する)。
+  app.post('/weekly/goal/generate', async (c) => {
+    return handle(c, async () => {
+      const { weekStart } = parseOrThrow(generateGoalSchema, await c.req.json())
+      return ok(c, { body: buildWeeklyGoalDraft(deps.db, weekStart, formatLocalDate(new Date())).body })
     })
   })
 

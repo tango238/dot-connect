@@ -264,6 +264,9 @@ export const saveGoalSchema = z.object({
   body: z.string().max(GOAL_MAX_LENGTH, `目標は${GOAL_MAX_LENGTH}文字以内にしてください`),
 })
 
+// 「目標を生成」: 週を受けて下書きを返す(weeklyGoalDraftService.ts)。
+export const generateGoalSchema = z.object({ weekStart: dateString })
+
 // 「整理する」は未保存の入力にも効かせたいので、本文を直接受ける。
 export const tidyGoalSchema = z.object({
   body: z.string().trim().min(1, '整理する目標を入力してください').max(GOAL_MAX_LENGTH),

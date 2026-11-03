@@ -1,5 +1,6 @@
 import { describe, expect, test } from 'bun:test'
 import * as reportRepo from '../../src/db/reportRepo'
+import * as todoRepo from '../../src/db/todoRepo'
 import { createFakeClaudeRunner, createTestApp, readJson } from './testApp'
 
 describe('GET /api/reports/weekly', () => {
@@ -121,6 +122,28 @@ describe('weekly goal', () => {
     expect(res.status).toBe(200)
     expect(body.data).toEqual({ body: '整理済み: 検索を出す。CIを速く。' })
     expect(deps.db.query(`SELECT COUNT(*) AS n FROM weekly_goals`).get()).toEqual({ n: 0 })
+  })
+
+  test('POST /generate returns a draft built from the week, without saving', async () => {
+    const { app, deps } = createTestApp()
+    todoRepo.create(deps.db, { title: '今週やる', dueDate: '2026-07-22', urgency: 5 })
+    const res = await app.request('/api/reports/weekly/goal/generate', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ weekStart: '2026-07-20' }),
+    })
+    const body = await readJson(res)
+    expect(res.status).toBe(200)
+    expect(body.data.body).toContain('## 今週の目標(7/20〜7/26)')
+    expect(body.data.body).toContain('今週やる(期日 7/22、緊5 重1)')
+    expect(deps.db.query(`SELECT COUNT(*) AS n FROM weekly_goals`).get()).toEqual({ n: 0 })
+
+    const bad = await app.request('/api/reports/weekly/goal/generate', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ weekStart: '2026-7-20' }),
+    })
+    expect(bad.status).toBe(400)
   })
 
   test('POST /tidy rejects an empty goal', async () => {

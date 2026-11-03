@@ -153,6 +153,7 @@ export const api = {
   tidyReportGoal: (body) => request('POST', '/api/reports/weekly/goal/tidy', { body }),
   // その週に期限のあるマイルストーン・TODO と優先度の高いものから、目標の
   // 下書き(Markdown)を作る。`{ body }`。保存はしない。
+  generateReportGoal: (weekStart) => request('POST', '/api/reports/weekly/goal/generate', { weekStart }),
   // Live numbers for the week (no claude call, safe to re-fetch freely).
   getReportStats: (weekStart) =>
     request('GET', `/api/reports/weekly/stats${weekStart ? `?weekStart=${encodeURIComponent(weekStart)}` : ''}`),

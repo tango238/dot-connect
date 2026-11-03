@@ -22,7 +22,7 @@ import { renderMarkdown } from './lib/markdown.js'
 import { formatDateTime } from './lib/todoDetail.js'
 import { getState, setState } from './state.js'
 import { openTodoDetail } from './todoDetailDialog.js'
-import { $, escapeHtml, formatMonthDay, toast, toastError, todayIso } from './utils.js'
+import { $, escapeHtml, formatMonthDay, toast, toastError, todayIso, twoStepConfirm } from './utils.js'
 
 
 function currentWeekStart() {
@@ -266,7 +266,7 @@ const goal = {
   saved: '', // last body known to be on the server for that week
   loaded: false,
   busy: false, // a save or tidy request is in flight
-  undo: null, // the text replaced by the last 整理する, for 整理前に戻す
+  undo: null, // the text replaced by the last 整理する / 目標を生成, for 元に戻す
 }
 
 const GOAL_PLACEHOLDER =
@@ -278,6 +278,7 @@ function goalEls() {
     text: $('#goal-text'),
     save: $('#goal-save'),
     tidy: $('#goal-tidy'),
+    generate: $('#goal-generate'),
     undo: $('#goal-undo'),
     status: $('#goal-status'),
     week: $('#goal-week'),
@@ -426,6 +427,47 @@ async function tidyGoal() {
   }
 }
 
+// 「目標を生成」: サーバーが DB から拾った下書きで本文を置き換えて保存する。
+// 既に何か書いてあれば、同じボタンをもう一度押したときだけ置き換える
+// (twoStepConfirm)。置き換える前の本文は「元に戻す」で戻せる。
+async function generateGoal() {
+  if (!goal.loaded || goal.busy) return
+  const els = goalEls()
+  const before = els.text.value
+  const weekStart = goal.weekStart
+  goal.busy = true
+  renderGoalChrome()
+  setGoalStatus('目標の下書きを作っています…')
+  try {
+    const { body, queued } = await api.generateReportGoal(weekStart)
+    if (goal.weekStart !== weekStart) return
+    goal.undo = before.trim() ? before : null
+    els.text.value = body
+    goal.busy = false
+    await saveGoal({ quiet: true })
+    // 拾った TODO は「今週終わらせるタスク」にも入った(期日も付いた)ので
+    // 一覧と TODO を読み直す。
+    await Promise.all([loadQueue(weekStart), refreshTodos()])
+    toast(`期限と優先度から目標の下書きを作って保存しました${queued ? `(今週のタスクに ${queued} 件追加)` : ''}`)
+  } catch (err) {
+    toastError(err.message)
+    if (goal.weekStart === weekStart) setGoalStatus('目標の生成に失敗しました(本文はそのままです)')
+  } finally {
+    goal.busy = false
+    renderGoalChrome()
+  }
+}
+
+function generateGoalClicked() {
+  if (!goal.loaded || goal.busy) return
+  const els = goalEls()
+  if (els.text.value.trim().length === 0) {
+    void generateGoal()
+    return
+  }
+  twoStepConfirm(els.generate, () => void generateGoal(), { armedText: '今の目標を置き換える？', restoreText: '目標を生成' })
+}
+
 async function undoTidy() {
   if (goal.undo === null || goal.busy) return
   goalEls().text.value = goal.undo
@@ -462,6 +504,7 @@ function initGoalForm() {
   })
   els.save.addEventListener('click', () => void saveGoal())
   els.tidy.addEventListener('click', () => void tidyGoal())
+  els.generate.addEventListener('click', generateGoalClicked)
   els.undo.addEventListener('click', () => void undoTidy())
 }
 
