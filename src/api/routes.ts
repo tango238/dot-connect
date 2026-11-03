@@ -1,6 +1,7 @@
 import { Hono } from 'hono'
 import { createLiveChanges } from './liveChanges'
 import { apiTokenAuth } from './apiTokenAuth'
+import { createCalendarRoutes } from './calendarRoutes'
 import { createCapabilitiesRoutes } from './capabilitiesRoutes'
 import { csrfProtection } from './csrf'
 import type { AppDependencies } from './dependencies'
@@ -42,6 +43,8 @@ export function createApiRoutes(deps: AppDependencies): Hono {
   // Browser-UI only (gh reaches GitHub on the server's behalf) — not in
   // apiTokenAuth.ts's allowlist.
   app.route('/github/issues', createGithubIssuesRoutes(deps))
+  // Browser-UI only — not in apiTokenAuth.ts's allowlist.
+  app.route('/calendar', createCalendarRoutes(deps))
   app.route('/milestones', createMilestonesRoutes(deps))
   app.route('/labels', createLabelsRoutes(deps))
   app.route('/reports', createReportsRoutes(deps))

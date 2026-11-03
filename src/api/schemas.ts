@@ -382,6 +382,28 @@ export const updateSettingsSchema = z
     message: '変更する項目を指定してください',
   })
 
+// スケジュールページが読むカレンダーの予定(1日分)。
+export const calendarEventsQuerySchema = z.object({
+  date: dateString,
+})
+
+// 同期する Google カレンダー。URL の形の検査は calendarSync.ts の
+// normalizeIcsUrl(webcal:// の読み替えも要る)に任せ、ここでは長さだけ見る。
+const CALENDAR_NAME_MAX_LENGTH = 50
+const CALENDAR_URL_MAX_LENGTH = 2000
+export const createCalendarSchema = z.object({
+  name: z.string().trim().min(1, 'カレンダーの名前を入力してください').max(CALENDAR_NAME_MAX_LENGTH),
+  url: z.string().trim().min(1, 'iCal の URL を入力してください').max(CALENDAR_URL_MAX_LENGTH),
+  color: colorString.optional(),
+})
+export const updateCalendarSchema = z
+  .object({
+    name: z.string().trim().min(1, 'カレンダーの名前を入力してください').max(CALENDAR_NAME_MAX_LENGTH).optional(),
+    url: z.string().trim().min(1, 'iCal の URL を入力してください').max(CALENDAR_URL_MAX_LENGTH).optional(),
+    color: colorString.optional(),
+  })
+  .refine((v) => Object.values(v).some((value) => value !== undefined), { message: '変更する項目を指定してください' })
+
 // GitHub Issue の取り込み。repo は "owner/repo" か GitHub の URL——形の検査は
 // githubRepo.ts に任せ(どちらにせよ正規化が要る)、ここでは長さだけ見る。
 const REPO_SPEC_MAX_LENGTH = 500

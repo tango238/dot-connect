@@ -4,6 +4,7 @@ import type { ExecFn } from '../../src/herdr/exec'
 import type { CreatedWorkspace, HerdrAgentStatus, HerdrClient, HerdrSnapshot } from '../../src/herdr/herdrClient'
 import type { AppDependencies } from '../../src/api/dependencies'
 import { createApiRoutes } from '../../src/api/routes'
+import { createCalendarSync } from '../../src/services/calendarSync'
 import type { ClaudeRunner } from '../../src/services/claudeRunner'
 import type { LlmAnalysis } from '../../src/types'
 
@@ -185,6 +186,8 @@ export function createRawTestApp(overrides: Partial<AppDependencies> = {}): RawT
     dbPath: ':memory:',
     herdr,
     claudeRunner,
+    // 既定ではネットワークに出ない(URL を設定したテストだけ fetch を差し込む)。
+    calendar: createCalendarSync({ db, fetch: async () => new Response('offline', { status: 503 }) }, { zone: 'Asia/Tokyo' }),
     exec,
     platform: 'darwin',
     herdrBin: 'herdr',

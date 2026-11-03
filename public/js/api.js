@@ -130,6 +130,20 @@ export const api = {
   // `{ path, state }` like GET /api/settings' `skill`.
   installSkill: () => request('POST', '/api/settings/skill/install'),
 
+  // Google カレンダー(iCal 非公開 URL)の予定。`{ status, events }` —— events は
+  // その日の分だけに切った配列(終日が先)。status は設定の有無・最終取得・
+  // エラー。URL は設定ダイアログ(updateSettings の calendarIcsUrl)で登録する。
+  calendarEvents: (date) => request('GET', `/api/calendar/events?date=${encodeURIComponent(date)}`),
+  // 全カレンダーをいま取り直す。`{ status }`。
+  refreshCalendar: () => request('POST', '/api/calendar/refresh'),
+  // 登録したカレンダー(名前・URL・色)の管理。設定ダイアログだけが使う。
+  // 一覧は URL 込み、追加/更新/個別更新はそのカレンダーの status を返す。
+  listCalendars: () => request('GET', '/api/calendar/sources'),
+  createCalendar: (input) => request('POST', '/api/calendar/sources', input),
+  updateCalendar: (id, patch) => request('PATCH', `/api/calendar/sources/${id}`, patch),
+  deleteCalendar: (id) => request('DELETE', `/api/calendar/sources/${id}`),
+  refreshOneCalendar: (id) => request('POST', `/api/calendar/sources/${id}/refresh`),
+
   getLatestReport: () => request('GET', '/api/reports/weekly/latest'),
   // The week's goal (free text). GET never 404s: an unwritten week comes
   // back with an empty body. tidy returns the reworded text without saving.

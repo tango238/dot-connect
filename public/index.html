@@ -471,6 +471,29 @@ h1 { font-size: 20px; font-weight: 700; }
 .day-block.short .tm { display: none; }
 .day-block.d { opacity: .5; }
 .day-block.d .ttl { text-decoration: line-through; }
+/* Google カレンダーの予定: カレンダーごとの色(--block-color を style で渡す)の
+   斜線で、TODO(塗り)と区別がつく。クリックしても何も起きない。 */
+.day-block.cal {
+  --block-color: var(--text-faint);
+  cursor: default; border-style: dashed; border-left-style: solid;
+  background: repeating-linear-gradient(135deg, color-mix(in srgb, var(--block-color) 22%, var(--bg-raise)) 0 5px, color-mix(in srgb, var(--block-color) 8%, var(--bg-raise)) 5px 10px);
+}
+.day-block.cal:hover { filter: none; z-index: 1; }
+.day-block.cal .ttl { font-weight: 500; color: var(--text); }
+.day-block .loc { display: block; font-size: 10.5px; color: var(--text-faint); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.day-block.short .loc { display: none; }
+.day-due-item.cal { cursor: default; }
+.day-due-item.cal:hover { background: transparent; }
+.day-due-item.cal .ttl { font-weight: 500; color: var(--text-dim); }
+.day-due-item.cal .st { color: var(--cal-color, var(--text-faint)); }
+.cal-tag { --cal-color: var(--text-faint); display: inline-flex; align-items: center; gap: 4px; font-family: var(--mono); font-size: 10px; color: var(--text-dim); border: 1px dashed color-mix(in srgb, var(--cal-color) 60%, var(--border)); border-radius: 4px; padding: 0 5px; flex-shrink: 0; max-width: 160px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cal-tag .cal-dot { width: 7px; height: 7px; border-radius: 2px; background: var(--cal-color); flex-shrink: 0; }
+.day-cal-item { display: inline-flex; align-items: center; gap: 5px; }
+.day-due-item .loc { font-size: 11px; color: var(--text-faint); flex-shrink: 0; }
+.day-cal-status { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; font-size: 12px; color: var(--text-dim); margin-bottom: 8px; min-height: 22px; }
+.day-cal-status:empty { display: none; }
+.day-cal-status .warn { color: var(--working); }
+.day-cal-status .btn { padding: 1px 8px; font-size: 11.5px; }
 .day-now { position: absolute; left: 0; right: 0; height: 2px; background: var(--blocked); z-index: 2; pointer-events: none; }
 .day-now::before { content: ''; position: absolute; left: -5px; top: -4px; width: 10px; height: 10px; border-radius: 50%; background: var(--blocked); }
 /* 予定(日付・開始・終了)の3欄を1行に並べる — TODOの新規/編集フォーム用 */
@@ -706,6 +729,17 @@ h1 { font-size: 20px; font-weight: 700; }
 .settings-label { flex-shrink: 0; width: 108px; font-size: 12.5px; color: var(--text-dim); }
 .settings-value { flex: 1; min-width: 0; font-family: var(--mono); font-size: 12px; word-break: break-all; }
 .settings-section { border-top: 1px solid var(--border); margin-top: 14px; padding-top: 6px; }
+.settings-calendar-status { color: var(--text-dim); margin: 0 0 6px; }
+.settings-calendar-status.is-error { color: var(--working); }
+.settings-calendar .settings-row, .settings-calendar-add .settings-row { align-items: center; }
+/* 色見本と「追加」だけの短いラベル列にして、URL 欄に幅を回す。 */
+.settings-calendar .settings-label, .settings-calendar-add .settings-label { width: 44px; }
+.settings-cal-actions { display: flex; flex-direction: column; gap: 4px; flex-shrink: 0; }
+.settings-cal-actions .btn { white-space: nowrap; }
+.settings-cal-fields { flex-direction: column; align-items: stretch; gap: 6px; }
+.settings-cal-fields input[type="text"], .settings-cal-fields input[type="url"] { width: 100%; min-width: 0; }
+.settings-cal-color { width: 28px; height: 24px; padding: 0; border: 1px solid var(--border); border-radius: 6px; background: none; cursor: pointer; }
+.settings-calendar-add { margin-top: 6px; }
 .settings-edit { display: flex; align-items: center; gap: 8px; }
 .settings-edit input {
   flex: 1; min-width: 0; font: inherit; background: var(--bg); color: var(--text);
@@ -958,10 +992,11 @@ h1 { font-size: 20px; font-weight: 700; }
           <button class="btn" id="day-today">今日</button>
         </div>
       </div>
-      <p class="page-sub">1日分の予定。上はこの日が期日のTODO、下は開始・終了時刻を設定したTODOのタイムラインです。時間帯をクリックすると予定を入れられます。</p>
+      <p class="page-sub">1日分の予定。上はこの日が期日のTODO、下は開始・終了時刻を設定したTODOのタイムラインです。時間帯をクリックすると予定を入れられます。設定で Google カレンダーの iCal URL を登録すると、その予定も重なります。</p>
       <div class="todo-group-label day-sec-label">期日 <span id="day-due-count"></span></div>
       <div class="day-due" id="day-due-list"></div>
       <div class="todo-group-label day-sec-label">タイムライン</div>
+      <p class="day-cal-status" id="day-cal-status" aria-live="polite"></p>
       <div class="inline-form day-quick" id="day-quick-form" hidden></div>
       <p class="day-timeline-note" id="day-timeline-note"></p>
       <div class="day-wrap">

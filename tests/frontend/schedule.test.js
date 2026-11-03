@@ -12,6 +12,7 @@ import {
   scheduleFields,
   scheduledTodosOn,
   splitLocalDateTime,
+  timelineEntries,
   timeOfMinutes,
 } from '../../public/js/lib/schedule.js'
 
@@ -178,3 +179,47 @@ describe('formatDayHeading', () => {
   })
 })
 
+describe('timelineEntries', () => {
+  const cal = (title, start, end, extra = {}) => ({
+    id: `${title}@${start}`, uid: title, title, location: null, allDay: false, date: '2026-10-30', start, end,
+    continuesBefore: false, continuesAfter: false, ...extra,
+  })
+
+  test('mixes the day\'s scheduled TODOs with timed calendar events, in start order', () => {
+    const todos = [todo(1, '2026-10-30T10:00', '2026-10-30T11:00'), todo(2, '2026-10-31T09:00', '2026-10-31T10:00')]
+    const events = [cal('会議', '09:00', '09:30'), cal('ランチ', '12:00', '13:00')]
+    const entries = timelineEntries(todos, events, '2026-10-30')
+    expect(entries.map((e) => [e.kind, e.kind === 'todo' ? e.todo.id : e.event.title, e.startMin, e.endMin, e.col, e.cols])).toEqual([
+      ['calendar', '会議', 540, 570, 0, 1],
+      ['todo', 1, 600, 660, 0, 1],
+      ['calendar', 'ランチ', 720, 780, 0, 1],
+    ])
+  })
+
+  test('overlapping TODO and calendar share columns, calendar first at the same start', () => {
+    const todos = [todo(1, '2026-10-30T10:00', '2026-10-30T11:00')]
+    const events = [cal('会議', '10:00', '10:30')]
+    const entries = timelineEntries(todos, events, '2026-10-30')
+    expect(entries.map((e) => [e.kind, e.col, e.cols])).toEqual([
+      ['calendar', 0, 2],
+      ['todo', 1, 2],
+    ])
+  })
+
+  test('skips all-day events, other days and bad times; 24:00 ends at the bottom', () => {
+    const events = [
+      cal('終日', null, null, { allDay: true }),
+      cal('別の日', '10:00', '11:00', { date: '2026-10-31' }),
+      cal('壊れた', '25:00', '26:00'),
+      cal('夜更かし', '23:00', '24:00', { continuesAfter: true }),
+    ]
+    const entries = timelineEntries([], events, '2026-10-30')
+    expect(entries.map((e) => [e.event.title, e.startMin, e.endMin])).toEqual([['夜更かし', 1380, 1440]])
+  })
+
+  test('with no calendar events it matches layoutBlocks', () => {
+    const todos = [todo(1, '2026-10-30T10:00', '2026-10-30T11:00'), todo(2, '2026-10-30T10:30', '2026-10-30T12:00')]
+    const entries = timelineEntries(todos, [], '2026-10-30')
+    expect(entries.map(({ kind, ...rest }) => rest)).toEqual(layoutBlocks(scheduledTodosOn(todos, '2026-10-30')))
+  })
+})

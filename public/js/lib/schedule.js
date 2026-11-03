@@ -103,13 +103,61 @@ export function dueTodosOn(todos, date) {
  * @returns {Array<{ todo: object, startMin: number, endMin: number, col: number, cols: number }>}
  */
 export function layoutBlocks(todos) {
-  const blocks = todos.map((todo) => ({
+  return layoutEntries(
+    todos.map((todo) => ({
+      todo,
+      startMin: minutesOfTime(todo.scheduledStart.slice(11, 16)),
+      endMin: minutesOfTime(todo.scheduledEnd.slice(11, 16)),
+    }))
+  )
+}
+
+/** GET /api/calendar/events の "HH:MM" → 分。終了の "24:00" は 1440。 */
+function minutesOfCalendarTime(time) {
+  return time === '24:00' ? MINUTES_PER_DAY : minutesOfTime(time)
+}
+
+/**
+ * TODO の予定とカレンダーの予定(時刻あり)を同じタイムラインに置く。列の
+ * 割り当てを一緒に計算するので、重なるときは横に並ぶ。
+ *
+ * @param {object[]} todos state の todos(全件。その日の予定だけ使う)
+ * @param {object[]} events GET /api/calendar/events の events(その日の分)
+ * @param {string} date 'YYYY-MM-DD'
+ * @returns {Array<{ kind: 'todo'|'calendar', todo?: object, event?: object, startMin: number, endMin: number, col: number, cols: number }>}
+ */
+export function timelineEntries(todos, events, date) {
+  const entries = scheduledTodosOn(todos, date).map((todo) => ({
+    kind: 'todo',
     todo,
     startMin: minutesOfTime(todo.scheduledStart.slice(11, 16)),
     endMin: minutesOfTime(todo.scheduledEnd.slice(11, 16)),
     col: 0,
     cols: 1,
   }))
+  for (const event of events ?? []) {
+    if (event.allDay || event.date !== date) continue
+    const startMin = minutesOfCalendarTime(event.start)
+    const endMin = minutesOfCalendarTime(event.end)
+    if (startMin === null || endMin === null) continue
+    entries.push({ kind: 'calendar', event, startMin, endMin })
+  }
+  // 列割り当ては開始順が前提。同時刻はカレンダーを先(背景のように左へ)。
+  entries.sort(
+    (a, b) =>
+      a.startMin - b.startMin ||
+      (a.kind === b.kind ? 0 : a.kind === 'calendar' ? -1 : 1) ||
+      (a.kind === 'todo' ? a.todo.id - b.todo.id : a.event.title.localeCompare(b.event.title))
+  )
+  return layoutEntries(entries)
+}
+
+/**
+ * 開始順に並んだ { startMin, endMin, ... } に col / cols を付ける(破壊的に
+ * 付けた新しいオブジェクトを返す)。
+ */
+function layoutEntries(entries) {
+  const blocks = entries.map((entry) => ({ ...entry, col: 0, cols: 1 }))
   // 塊: 直前までの最大終了時刻より前に始まるブロックは同じ塊。
   let cluster = []
   let clusterEnd = -1

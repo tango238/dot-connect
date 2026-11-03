@@ -9,6 +9,11 @@
 // ないため(todos.js の新規フォームと同じ理由)。
 //
 // 「今日」の線は 1 分おきに引き直す。選んでいる日が今日のときだけ出る。
+// Google カレンダーの予定(設定で iCal 非公開 URL を登録したとき)は、
+// GET /api/calendar/events から選んでいる日の分だけ読み、終日は上段に、
+// 時刻ありはタイムラインに TODO と一緒に並べる。読み取り専用なので、
+// ブロックは押せない。日を変えたとき・1 分おきの tick で読み直す ——
+// サーバー側が 15 分ごとに取り直しているので、画面もそれに追随する。
 
 import { api } from './api.js'
 import { refreshBoth } from './data.js'
@@ -18,15 +23,14 @@ import {
   formatDayHeading,
   formatTimeRange,
   hasSchedule,
-  layoutBlocks,
   MINUTES_PER_DAY,
-  minutesOfTime,
-  scheduledTodosOn,
+  timelineEntries,
   timeOfMinutes,
   DEFAULT_DURATION_MINUTES,
 } from './lib/schedule.js'
 import { shiftIsoDate } from './lib/isoDate.js'
 import { priorityBadge } from './lib/priority.js'
+import { openSettingsDialog } from './settingsDialog.js'
 import { getState } from './state.js'
 import { openTodoDetail } from './todoDetailDialog.js'
 import { $, escapeHtml, toast, toastError, todayIso } from './utils.js'
@@ -34,6 +38,10 @@ import { $, escapeHtml, toast, toastError, todayIso } from './utils.js'
 const NOW_TICK_MS = 60_000
 
 let selectedDate = todayIso()
+// Google カレンダーの予定。date は最後に読みに行った日(読み込み中も含む)
+// で、renderDay() はこれが selectedDate と違うときだけ読みに行く —— 描画の
+// たびに fetch しないため。status は null なら未取得。
+let calendar = { date: null, events: [], status: null, error: null, loading: false, refreshing: false }
 // null while closed; otherwise the clicked hour's draft. Field values live
 // in the DOM (the form is never re-rendered while open), so this only has
 // to remember that it is open and whether a save is in flight.
@@ -64,6 +72,20 @@ function msChip(todo) {
   return `<span class="ms-chip" style="color:${color};background:color-mix(in srgb, ${color} 14%, transparent)"><span class="ms-dot" style="background:${color}"></span>${escapeHtml(todo.milestoneTitle)}</span>`
 }
 
+function calendarTag(name, color) {
+  return `<span class="cal-tag" style="--cal-color:${escapeHtml(color)}"><span class="cal-dot"></span>${escapeHtml(name)}</span>`
+}
+
+function calendarAllDayItem(event) {
+  const span = event.continuesBefore || event.continuesAfter ? '(複数日)' : ''
+  const location = event.location ? `<span class="loc" title="${escapeHtml(event.location)}">📍${escapeHtml(event.location)}</span>` : ''
+  return `<div class="day-due-item cal" style="--cal-color:${escapeHtml(event.color)}" title="${escapeHtml(event.calendarName)} の終日予定${span}">
+    <span class="st">▦</span>
+    <span class="ttl">${escapeHtml(event.title)}${span ? ` <span class="day-due-time">${span}</span>` : ''}</span>
+    ${location}${calendarTag(event.calendarName, event.color)}
+  </div>`
+}
+
 function dueItem(todo) {
   const done = todo.status === 'done'
   const scheduled = hasSchedule(todo) && todo.scheduledStart.slice(0, 10) === selectedDate
@@ -78,10 +100,10 @@ function dueItem(todo) {
 
 function renderDueList(todos) {
   const due = dueTodosOn(todos, selectedDate)
+  const allDay = calendar.date === selectedDate ? calendar.events.filter((e) => e.allDay) : []
   $('#day-due-count').textContent = due.length ? `${due.length}件` : ''
-  $('#day-due-list').innerHTML = due.length
-    ? due.map(dueItem).join('')
-    : `<p class="day-due-empty">この日が期日のTODOはありません。</p>`
+  const items = allDay.map(calendarAllDayItem).join('') + due.map(dueItem).join('')
+  $('#day-due-list').innerHTML = items || `<p class="day-due-empty">この日が期日のTODOはありません。</p>`
 }
 
 function hourLabels() {
@@ -100,22 +122,115 @@ function hourCells() {
   return cells.join('')
 }
 
-function blockHtml(block) {
-  const { todo, startMin, endMin, col, cols } = block
-  const done = todo.status === 'done'
-  const color = escapeHtml(todo.milestoneColor ?? '')
+function blockGeometry({ startMin, endMin, col, cols }, color = '') {
   const top = (startMin / MINUTES_PER_DAY) * 100
   const height = ((endMin - startMin) / MINUTES_PER_DAY) * 100
   const left = (col / cols) * 100
   const width = 100 / cols
-  // 45 分未満(--hour-h: 44px で 33px 弱)は 2 行入らないので、時刻を
-  // タイトルの前に畳んで 1 行にする。
-  const short = endMin - startMin < 45
+  return {
+    // 45 分未満(--hour-h: 44px で 33px 弱)は 2 行入らないので、時刻を
+    // タイトルの前に畳んで 1 行にする。
+    short: endMin - startMin < 45,
+    style: `top:${top}%;height:${height}%;left:${left}%;width:calc(${width}% - 3px);${color ? `--block-color:${color}` : ''}`,
+  }
+}
+
+function todoBlockHtml(block) {
+  const { todo } = block
+  const done = todo.status === 'done'
+  const { short, style } = blockGeometry(block, escapeHtml(todo.milestoneColor ?? ''))
   const range = escapeHtml(formatTimeRange(todo))
-  const style = `top:${top}%;height:${height}%;left:${left}%;width:calc(${width}% - 3px);${color ? `--block-color:${color}` : ''}`
   return `<button type="button" class="day-block ${done ? 'd' : ''} ${short ? 'short' : ''}" data-action="open-todo-detail" data-id="${todo.id}" style="${style}" title="#${todo.id} ${escapeHtml(todo.title)} (${range})">
     <span class="tm">${range}</span><span class="ttl">${short ? `<span class="tm-inline">${range}</span> ` : ''}${escapeHtml(todo.title)}</span>
   </button>`
+}
+
+// カレンダーの予定は押せない(詳細は Google カレンダー側)。日をまたぐ分は
+// 00:00 / 24:00 で切られて来るので、時刻の表示はそのまま出せばよい。
+function calendarBlockHtml(block) {
+  const { event } = block
+  const { short, style } = blockGeometry(block, escapeHtml(event.color))
+  const range = `${event.start}–${event.end}`
+  const tip = [event.title, range, event.location].filter(Boolean).join(' / ')
+  const location = event.location && !short ? `<span class="loc">📍${escapeHtml(event.location)}</span>` : ''
+  return `<div class="day-block cal ${short ? 'short' : ''}" style="${style}" title="${escapeHtml(event.calendarName)}: ${escapeHtml(tip)}">
+    <span class="tm">${range}</span><span class="ttl">${short ? `<span class="tm-inline">${range}</span> ` : ''}${escapeHtml(event.title)}</span>${location}
+  </div>`
+}
+
+function blockHtml(block) {
+  return block.kind === 'calendar' ? calendarBlockHtml(block) : todoBlockHtml(block)
+}
+
+function formatFetchedAt(iso) {
+  const at = new Date(iso)
+  if (Number.isNaN(at.getTime())) return ''
+  const pad = (n) => String(n).padStart(2, '0')
+  const sameDay = at.toDateString() === new Date().toDateString()
+  const time = `${pad(at.getHours())}:${pad(at.getMinutes())}`
+  return sameDay ? time : `${at.getMonth() + 1}/${at.getDate()} ${time}`
+}
+
+// タイムラインの上の 1 行: 未設定なら設定への誘導、設定済みならカレンダー
+// ごとの色付きタグ(その日の件数・最終取得・エラー)と「更新」ボタン。
+function renderCalendarStatus() {
+  const host = $('#day-cal-status')
+  if (!host) return
+  const { status, error, refreshing } = calendar
+  if (status === null) {
+    host.innerHTML = error ? `<span class="warn">Google カレンダーの予定を読めませんでした: ${escapeHtml(error)}</span>` : ''
+    return
+  }
+  if (!status.configured) {
+    host.innerHTML = `<span class="cal-tag"><span class="cal-dot"></span>カレンダー</span><span>Google カレンダーの予定を重ねるには、<button type="button" class="btn btn-ghost" data-action="open-settings">設定</button>で iCal 形式の非公開 URL を登録します。</span>`
+    return
+  }
+  const events = calendar.date === selectedDate ? calendar.events : []
+  const parts = status.calendars.map((cal) => {
+    const count = events.filter((e) => e.calendarId === cal.id).length
+    const detail = cal.error
+      ? `<span class="warn" title="${escapeHtml(cal.error)}">⚠ ${escapeHtml(cal.error)}</span>`
+      : `<span title="${cal.fetchedAt ? `${escapeHtml(formatFetchedAt(cal.fetchedAt))} 取得` : '未取得'}">${count ? `${count}件` : '予定なし'}</span>`
+    return `<span class="day-cal-item">${calendarTag(cal.name, cal.color)}${detail}</span>`
+  })
+  if (error) parts.push(`<span class="warn">⚠ ${escapeHtml(error)}</span>`)
+  if (status.windowFrom && (selectedDate < status.windowFrom || selectedDate > status.windowTo)) {
+    parts.push(`<span class="warn">この日は同期の範囲外(${escapeHtml(status.windowFrom)}〜${escapeHtml(status.windowTo)})です</span>`)
+  }
+  parts.push(`<button type="button" class="btn btn-ghost" data-action="refresh-calendar" ${refreshing || status.refreshing ? 'disabled' : ''}>${refreshing || status.refreshing ? '取得中…' : '更新'}</button>`)
+  host.innerHTML = parts.join('')
+}
+
+async function loadCalendar(date) {
+  // 日が変わったら前の日の予定は消す(新しい日に一瞬出さないため)。
+  calendar = { ...calendar, date, loading: true, events: calendar.date === date ? calendar.events : [] }
+  try {
+    const { status, events } = await api.calendarEvents(date)
+    // 読んでいる間に日を変えていたら、その結果は捨てる(新しい日の分が来る)。
+    if (calendar.date !== date) return
+    calendar = { ...calendar, events, status, error: null, loading: false }
+  } catch (err) {
+    if (calendar.date !== date) return
+    calendar = { ...calendar, error: err.message, loading: false }
+  }
+  if (isPageActive()) renderDay()
+}
+
+async function refreshCalendarNow() {
+  if (calendar.refreshing) return
+  calendar = { ...calendar, refreshing: true }
+  renderCalendarStatus()
+  try {
+    const { status } = await api.refreshCalendar()
+    calendar = { ...calendar, status, refreshing: false }
+    const failed = status.calendars.filter((c) => c.error)
+    if (failed.length) toastError(`取得に失敗したカレンダーがあります: ${failed.map((c) => `${c.name}(${c.error})`).join(' / ')}`)
+    else toast(`カレンダーの予定を取り直しました(${status.calendars.reduce((n, c) => n + c.eventCount, 0)}件)`)
+  } catch (err) {
+    calendar = { ...calendar, refreshing: false }
+    toastError(err.message)
+  }
+  await loadCalendar(selectedDate)
 }
 
 function nowLineHtml() {
@@ -126,7 +241,8 @@ function nowLineHtml() {
 }
 
 function renderTimeline(todos) {
-  const blocks = layoutBlocks(scheduledTodosOn(todos, selectedDate))
+  const events = calendar.date === selectedDate ? calendar.events : []
+  const blocks = timelineEntries(todos, events, selectedDate)
   $('#day-hours').innerHTML = hourLabels()
   $('#day-canvas').innerHTML = hourCells() + blocks.map(blockHtml).join('') + nowLineHtml()
   $('#day-timeline-note').textContent = blocks.length
@@ -141,8 +257,10 @@ export function renderDay() {
   $('#day-today-badge').hidden = selectedDate !== today
   const picker = $('#day-picker')
   if (picker.value !== selectedDate) picker.value = selectedDate
+  if (calendar.date !== selectedDate && !calendar.loading) void loadCalendar(selectedDate)
   renderDueList(todos)
   renderTimeline(todos)
+  renderCalendarStatus()
 }
 
 // ---------- quick form ----------
@@ -288,6 +406,12 @@ export function initDay() {
     }
     if (ev.target.closest('[data-action="cancel-quick"]')) {
       closeQuickForm()
+    if (ev.target.closest('[data-action="refresh-calendar"]')) {
+      void refreshCalendarNow()
+      return
+    }
+    if (ev.target.closest('[data-action="open-settings"]')) {
+      openSettingsDialog()
     }
   })
   $('#page-day').addEventListener('keydown', (ev) => {
@@ -312,6 +436,9 @@ export function initDay() {
   })
 
   setInterval(() => {
-    if (isPageActive()) renderDay()
+    if (!isPageActive()) return
+    // 現在時刻の線と一緒に、サーバーが取り直したカレンダーの予定も拾う。
+    if (!calendar.loading) void loadCalendar(selectedDate)
+    renderDay()
   }, NOW_TICK_MS)
 }

@@ -1,6 +1,7 @@
 import { Database } from 'bun:sqlite'
 import { mkdirSync } from 'node:fs'
 import { dirname } from 'node:path'
+import { migrateLegacySingleCalendar } from './calendarRepo'
 import { backfillHistoricalData, ensureColumn, rebuildLegacyTables } from './migrations'
 
 const MIGRATIONS: readonly string[] = [
@@ -157,6 +158,20 @@ const MIGRATIONS: readonly string[] = [
   )`,
   // 週ごとの目標(週次レポート画面の自由入力)。week_start は weekly_reports
   // と同じ月曜日付だが FK は張らない: 目標はレポートの生成前に書くもの。
+  // 同期する Google カレンダー(iCal 非公開 URL)と、取得した ICS のキャッシュ
+  // (calendarRepo.ts)。URL は秘密なので API トークン経由では読めない。
+  `CREATE TABLE IF NOT EXISTS calendars (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL,
+    url TEXT NOT NULL,
+    color TEXT NOT NULL DEFAULT '#8b96a5',
+    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+  )`,
+  `CREATE TABLE IF NOT EXISTS calendar_cache (
+    calendar_id INTEGER PRIMARY KEY REFERENCES calendars(id) ON DELETE CASCADE,
+    ics TEXT NOT NULL,
+    fetched_at TEXT NOT NULL
+  )`,
   `CREATE TABLE IF NOT EXISTS weekly_goals (
     week_start TEXT PRIMARY KEY,
     body TEXT NOT NULL DEFAULT '',
@@ -243,5 +258,6 @@ export function createDatabase(path: string): Database {
   }
   rebuildLegacyTables(db)
   backfillHistoricalData(db)
+  migrateLegacySingleCalendar(db)
   return db
 }

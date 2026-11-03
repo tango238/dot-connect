@@ -2,6 +2,7 @@ import type { HerdrCompatibilityMonitor } from '../herdr/compatibility'
 import type { Database } from 'bun:sqlite'
 import type { ExecFn } from '../herdr/exec'
 import type { HerdrClient } from '../herdr/herdrClient'
+import type { CalendarSync } from '../services/calendarSync'
 import type { Capabilities } from '../services/capabilitiesService'
 import type { ClaudeRunner } from '../services/claudeRunner'
 
@@ -14,6 +15,9 @@ export interface AppDependencies {
   readonly herdr: HerdrClient
   readonly herdrCompatibility?: HerdrCompatibilityMonitor
   readonly claudeRunner: ClaudeRunner
+  // Google カレンダー(iCal 非公開 URL)の取得と予定のキャッシュ。ルートと
+  // server.ts の定期取得が同じインスタンスを見る必要があるのでここに置く。
+  readonly calendar: CalendarSync
   readonly exec: ExecFn
   // process.platform, injected so capabilities detection (and anything else
   // gating herdr-dependent behavior) stays testable rather than reading the

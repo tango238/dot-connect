@@ -15,7 +15,7 @@ import { herdrCompatibilityHtml } from './lib/herdrCompatibility.js'
 import { api } from './api.js'
 import { buildSettingsRows } from './lib/settingsInfo.js'
 import { getState, setState, subscribe } from './state.js'
-import { $, escapeHtml, toast, toastError } from './utils.js'
+import { $, escapeHtml, toast, toastError, toastWarning, twoStepConfirm } from './utils.js'
 
 let open = false
 // Last known GET /api/settings response, or null before the first load.
@@ -31,6 +31,12 @@ let savingIdle = false
 let wipEnabledDraft = null
 let wipLimitDraft = null
 let savingWip = false
+// Google カレンダーの一覧(GET /api/calendar/sources)。null は未取得。
+// 追加フォームの入力は DOM が正だが、再描画で消えないよう下書きも持つ。
+let calendars = null
+let calendarsError = ''
+let calendarBusy = false
+let newCalendarDraft = { name: '', url: '' }
 let openingNotes = false
 let installingSkill = false
 let herdrInfo = null
@@ -155,6 +161,172 @@ function renderWipRow() {
     <p class="field-hint">有効にすると、herdr のセッションが残っている未完了TODOが WIP可能数(1〜30件)に達した時点で、それ以上 herdr へ投入できなくなります。投入するには実行中のTODOを完了にするか削除してください。左のメニューに使用状況が表示されます。</p>`
 }
 
+function formatCalendarStatus(status) {
+  if (!status) return ''
+  if (status.error) return `⚠ ${status.error}`
+  if (!status.fetchedAt) return '取得中…'
+  const at = new Date(status.fetchedAt)
+  const pad = (n) => String(n).padStart(2, '0')
+  return `${at.getMonth() + 1}/${at.getDate()} ${pad(at.getHours())}:${pad(at.getMinutes())} 取得 · ${status.eventCount}件`
+}
+
+function calendarRowHtml(cal) {
+  const disabled = calendarBusy ? 'disabled' : ''
+  const statusText = formatCalendarStatus(cal.status)
+  return `<div class="settings-calendar" data-calendar-id="${cal.id}">
+    <div class="settings-row">
+      <div class="settings-label">
+        <input type="color" class="settings-cal-color" data-field="color" value="${escapeHtml(cal.color)}" aria-label="色" title="色(変えるとすぐ保存)" ${disabled}>
+      </div>
+      <div class="settings-value settings-edit settings-cal-fields">
+        <input type="text" data-field="name" value="${escapeHtml(cal.name)}" placeholder="名前" aria-label="名前" maxlength="50" ${disabled}>
+        <input type="url" data-field="url" value="${escapeHtml(cal.url)}" placeholder="https://calendar.google.com/calendar/ical/…/basic.ics" aria-label="iCal 形式の非公開 URL" spellcheck="false" autocomplete="off" ${disabled}>
+      </div>
+      <div class="settings-cal-actions">
+        <button type="button" class="btn" data-action="save-calendar" data-id="${cal.id}" ${disabled}>保存</button>
+        <button type="button" class="btn btn-ghost" data-action="refresh-one-calendar" data-id="${cal.id}" title="いま取り直す" ${disabled}>更新</button>
+        <button type="button" class="btn btn-ghost" data-action="delete-calendar" data-id="${cal.id}" title="このカレンダーを外す" ${disabled}>🗑</button>
+      </div>
+    </div>
+    ${statusText ? `<p class="field-hint settings-calendar-status ${cal.status?.error ? 'is-error' : ''}">${escapeHtml(statusText)}</p>` : ''}
+  </div>`
+}
+
+// Google カレンダー(iCal 非公開 URL)の一覧。カレンダーごとに名前・URL・色を
+// 持ち、スケジュール画面ではその色で予定が出る。追加・URL 変更のときは
+// サーバーがその場で取りに行き、結果(件数かエラー)が各行の下に出る。
+function renderCalendarRow() {
+  const host = $('#settings-calendar-row')
+  if (!host) return
+  const loading = calendars === null
+  const disabled = loading || calendarBusy ? 'disabled' : ''
+  const rows = loading
+    ? `<p class="field-hint">${calendarsError ? escapeHtml(calendarsError) : '読み込み中…'}</p>`
+    : calendars.length
+      ? calendars.map(calendarRowHtml).join('')
+      : `<p class="field-hint">まだ登録されていません。</p>`
+  host.innerHTML = `
+    <div class="settings-row">
+      <div class="settings-label">Google カレンダー</div>
+      <div class="settings-value"></div>
+    </div>
+    ${rows}
+    <div class="settings-row settings-calendar-add">
+      <div class="settings-label">追加</div>
+      <div class="settings-value settings-edit settings-cal-fields">
+        <input type="text" id="settings-calendar-new-name" value="${escapeHtml(newCalendarDraft.name)}" placeholder="名前(例: 仕事)" aria-label="名前" maxlength="50" ${disabled}>
+        <input type="url" id="settings-calendar-new-url" value="${escapeHtml(newCalendarDraft.url)}" placeholder="https://calendar.google.com/calendar/ical/…/basic.ics" aria-label="iCal 形式の非公開 URL" spellcheck="false" autocomplete="off" ${disabled}>
+      </div>
+      <button type="button" class="btn btn-accent" data-action="add-calendar" ${disabled}>${calendarBusy ? '取得中…' : '追加'}</button>
+    </div>
+    <p class="field-hint">Google カレンダーの「設定」→ 対象のカレンダー →「iCal 形式の非公開 URL」を貼り付けると、スケジュール画面のタイムラインにその色で予定が重なります(読み取り専用、15分ごとに取得。Google 側の更新が反映されるまで数分〜数時間かかることがあります)。複数登録でき、色は左の色をクリックして変えられます。この URL を知っている人は誰でも予定を読めるので、共有しないでください。</p>`
+}
+
+async function loadCalendars() {
+  try {
+    calendars = await api.listCalendars()
+    calendarsError = ''
+  } catch (err) {
+    calendars = null
+    calendarsError = `カレンダー一覧を取得できませんでした: ${err.message}`
+  }
+  if (open) renderCalendarRow()
+}
+
+// 一覧を書き換える操作の共通部分: busy にして描き、終わったら一覧を取り直す。
+async function withCalendarBusy(run) {
+  if (calendarBusy) return
+  calendarBusy = true
+  renderCalendarRow()
+  try {
+    await run()
+  } catch (err) {
+    toastError(err.message)
+  } finally {
+    calendarBusy = false
+    await loadCalendars()
+  }
+}
+
+function reportCalendarStatus(status, verb) {
+  if (status.error) toastWarning(`${status.name} を${verb}しましたが取得に失敗しました: ${status.error}`)
+  else toast(`${status.name} を${verb}し、予定を取得しました(${status.eventCount}件)`)
+}
+
+function addCalendar() {
+  const name = $('#settings-calendar-new-name')?.value.trim() ?? ''
+  const url = $('#settings-calendar-new-url')?.value.trim() ?? ''
+  if (!name || !url) {
+    toastError('カレンダーの名前と iCal の URL を入力してください')
+    return
+  }
+  newCalendarDraft = { name, url }
+  void withCalendarBusy(async () => {
+    const status = await api.createCalendar({ name, url })
+    newCalendarDraft = { name: '', url: '' }
+    reportCalendarStatus(status, '追加')
+  })
+}
+
+function calendarFields(id) {
+  const row = $(`.settings-calendar[data-calendar-id="${id}"]`)
+  if (!row) return null
+  return {
+    name: $('[data-field="name"]', row)?.value.trim() ?? '',
+    url: $('[data-field="url"]', row)?.value.trim() ?? '',
+    color: $('[data-field="color"]', row)?.value ?? '',
+  }
+}
+
+function saveCalendar(id) {
+  const fields = calendarFields(id)
+  const current = calendars?.find((c) => c.id === id)
+  if (!fields || !current) return
+  if (!fields.name || !fields.url) {
+    toastError('カレンダーの名前と iCal の URL を入力してください')
+    return
+  }
+  const patch = {}
+  if (fields.name !== current.name) patch.name = fields.name
+  if (fields.url !== current.url) patch.url = fields.url
+  if (fields.color && fields.color !== current.color) patch.color = fields.color
+  if (Object.keys(patch).length === 0) {
+    toast('変更はありません')
+    return
+  }
+  void withCalendarBusy(async () => {
+    const status = await api.updateCalendar(id, patch)
+    if (patch.url !== undefined) reportCalendarStatus(status, '更新')
+    else toast(`${status.name} を更新しました`)
+  })
+}
+
+// 色は選んだ瞬間に保存する(名前・URL と違って「保存」を待つ理由がない)。
+function recolorCalendar(id, color) {
+  const current = calendars?.find((c) => c.id === id)
+  if (!current || current.color === color) return
+  void withCalendarBusy(async () => {
+    await api.updateCalendar(id, { color })
+  })
+}
+
+function deleteCalendar(id) {
+  const current = calendars?.find((c) => c.id === id)
+  if (!current) return
+  void withCalendarBusy(async () => {
+    await api.deleteCalendar(id)
+    toast(`${current.name} を外しました`)
+  })
+}
+
+function refreshOneCalendar(id) {
+  void withCalendarBusy(async () => {
+    const status = await api.refreshOneCalendar(id)
+    if (status.error) toastWarning(`${status.name} の取得に失敗しました: ${status.error}`)
+    else toast(`${status.name} の予定を取り直しました(${status.eventCount}件)`)
+  })
+}
+
 const SKILL_STATE_TEXT = {
   not_installed: '未インストール',
   installed: 'インストール済み(最新)',
@@ -232,6 +404,7 @@ function renderDialog() {
     <div id="settings-upload-dir-row" class="settings-section"></div>
     <div id="settings-idle-recap-row" class="settings-section"></div>
     <div id="settings-wip-row" class="settings-section"></div>
+    <div id="settings-calendar-row" class="settings-section"></div>
     <div id="settings-skill-row" class="settings-section"></div>
     <section id="settings-herdr" class="settings-section" aria-live="polite"></section>
     <div class="modal-footer">
@@ -240,6 +413,7 @@ function renderDialog() {
   renderUploadRow()
   renderIdleRow()
   renderWipRow()
+  renderCalendarRow()
   renderSkillRow()
   renderHerdr()
 }
@@ -258,6 +432,7 @@ async function loadSettings() {
   renderUploadRow()
   renderIdleRow()
   renderWipRow()
+  renderCalendarRow()
   renderSkillRow()
 }
 
@@ -270,8 +445,11 @@ export function openSettingsDialog() {
   idleDraft = null
   wipEnabledDraft = null
   wipLimitDraft = null
+  calendars = null
+  newCalendarDraft = { name: '', url: '' }
   renderDialog()
   void loadSettings()
+  void loadCalendars()
   void loadHerdr()
 }
 
@@ -398,6 +576,14 @@ function handleDialogClick(ev) {
     void saveIdleRecap()
   } else if (action === 'save-wip') {
     void saveWip()
+  } else if (action === 'add-calendar') {
+    addCalendar()
+  } else if (action === 'save-calendar') {
+    saveCalendar(Number(btn.dataset.id))
+  } else if (action === 'delete-calendar') {
+    twoStepConfirm(btn, () => deleteCalendar(Number(btn.dataset.id)), { armedText: '外す？', restoreText: '🗑' })
+  } else if (action === 'refresh-one-calendar') {
+    refreshOneCalendar(Number(btn.dataset.id))
   } else if (action === 'install-skill') {
     void installSkillNow()
   } else if (action === 'open-notes-dir') {
@@ -424,11 +610,21 @@ export function initSettingsDialog() {
     if (ev.target.id === 'settings-idle-recap') idleDraft = ev.target.value
     if (ev.target.id === 'settings-wip-limit') wipLimitDraft = ev.target.value
     if (ev.target.id === 'settings-wip-enabled') wipEnabledDraft = ev.target.checked
+    if (ev.target.id === 'settings-calendar-new-name') newCalendarDraft = { ...newCalendarDraft, name: ev.target.value }
+    if (ev.target.id === 'settings-calendar-new-url') newCalendarDraft = { ...newCalendarDraft, url: ev.target.value }
+  })
+  // 色は <input type="color"> の change(ピッカーを閉じたとき)で保存する。
+  $('#settings-dialog').addEventListener('change', (ev) => {
+    if (ev.target.classList?.contains('settings-cal-color')) {
+      recolorCalendar(Number(ev.target.closest('.settings-calendar')?.dataset.calendarId), ev.target.value)
+    }
   })
   $('#settings-dialog').addEventListener('keydown', (ev) => {
     if (ev.key === 'Enter' && ev.target.id === 'settings-upload-dir') saveUploadDir()
     if (ev.key === 'Enter' && ev.target.id === 'settings-idle-recap') void saveIdleRecap()
     if (ev.key === 'Enter' && ev.target.id === 'settings-wip-limit') void saveWip()
+    if (ev.key === 'Enter' && (ev.target.id === 'settings-calendar-new-name' || ev.target.id === 'settings-calendar-new-url')) addCalendar()
+    if (ev.key === 'Enter' && ev.target.closest?.('.settings-calendar')) saveCalendar(Number(ev.target.closest('.settings-calendar').dataset.calendarId))
   })
   document.addEventListener('keydown', (ev) => {
     if (ev.key === 'Escape' && open) closeDialog()

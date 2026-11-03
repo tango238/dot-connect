@@ -11,6 +11,7 @@ import { createApiRoutes } from './api/routes'
 import type { AppDependencies } from './api/dependencies'
 import { detectCapabilities } from './services/capabilitiesService'
 import { createClaudeRunner } from './services/claudeRunner'
+import { createCalendarSync } from './services/calendarSync'
 import { createDailyReportRefresher } from './services/reportRefreshService'
 
 export function buildDependencies(): AppDependencies {
@@ -22,10 +23,12 @@ export function buildDependencies(): AppDependencies {
   const herdrCompatibility = createHerdrCompatibilityMonitor(spawnExec, config.herdrBin, {
     intervalMs: config.herdrCheckIntervalMs,
   })
+  const db = createDatabase(config.dbPath)
   return {
     herdrCompatibility,
-    db: createDatabase(config.dbPath),
+    db,
     dbPath: config.dbPath,
+    calendar: createCalendarSync({ db }),
     herdr: createHerdrClient(spawnExec, config.herdrBin, {
       assertDispatchCompatible: () => herdrCompatibility.assertDispatchCompatible(),
     }),
@@ -123,6 +126,10 @@ if (import.meta.main) {
   } else {
     logger.info('週次レポートの自動再生成: 無効 (DOT_CONNECT_REPORT_AUTO_REFRESH=0)')
   }
+
+  // Google カレンダー(iCal 非公開 URL)が設定されていれば、起動時と 15 分ごとに
+  // 取り直す。未設定なら refresh は何もしない。
+  deps.calendar.start()
 
   if (config.desktopMode) {
     // See desktopLifecycle.ts: exits this process once the desktop shell's
