@@ -83,7 +83,8 @@ function importHandler(deps: AppDependencies, fetchIssue: FetchIssue) {
           deps.db,
           buildIssueTodoInput(result.issue, {
             milestoneId: input.milestoneId,
-            priority: input.priority,
+            urgency: input.urgency,
+            importance: input.importance,
             workspacePath: input.workspacePath,
             model: input.model,
           })

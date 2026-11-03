@@ -26,7 +26,7 @@ import {
   DEFAULT_DURATION_MINUTES,
 } from './lib/schedule.js'
 import { shiftIsoDate } from './lib/isoDate.js'
-import { priorityBadge } from './lib/priorityBadge.js'
+import { priorityBadge } from './lib/priority.js'
 import { getState } from './state.js'
 import { openTodoDetail } from './todoDetailDialog.js'
 import { $, escapeHtml, toast, toastError, todayIso } from './utils.js'
@@ -51,9 +51,9 @@ function statusIcon(todo) {
 }
 
 function prioBadge(todo) {
-  const badge = priorityBadge(todo.priority)
+  const badge = priorityBadge(todo)
   if (!badge) return ''
-  return `<span class="prio-badge ${badge.className}">${badge.label}</span>`
+  return `<span class="prio-badge ${badge.className}" title="${badge.title}">${badge.label}</span>`
 }
 
 // 一覧の ms-chip と同じ見た目だが、ここでは紐付けの変更はしないので

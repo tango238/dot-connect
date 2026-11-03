@@ -8,7 +8,7 @@ function todo(overrides) {
     description: '',
     milestoneId: null,
     status: 'open',
-    priority: 'none',
+    urgency: 1, importance: 1,
     dueDate: null,
     model: null,
     workspacePath: null,
@@ -88,7 +88,7 @@ describe('detailRows', () => {
     const rows = detailRows(
       todo({
         status: 'done',
-        priority: 'high',
+        urgency: 5,
         dueDate: '2026-09-30',
         scheduledStart: '2026-09-28T10:00',
         scheduledEnd: '2026-09-28T11:30',
@@ -121,9 +121,9 @@ describe('detailRows', () => {
     expect(valueOf(detailRows(todo({ status: 'done' }), 'UTC'), 'ステータス')).toBe('完了')
   })
 
-  test('priority reuses the row badge labels', () => {
-    expect(valueOf(detailRows(todo({ priority: 'high' }), 'UTC'), '優先度')).toBe('高')
-    expect(valueOf(detailRows(todo({ priority: 'low' }), 'UTC'), '優先度')).toBe('低')
+  test('priority shows both levels', () => {
+    expect(valueOf(detailRows(todo({ urgency: 5 }), 'UTC'), '優先度')).toBe('緊急度 5 / 重要度 1')
+    expect(valueOf(detailRows(todo({ urgency: 3, importance: 4 }), 'UTC'), '優先度')).toBe('緊急度 3 / 重要度 4')
   })
 
   test('期限があれば「期限」行を出す', () => {
@@ -156,9 +156,9 @@ describe('detailRows', () => {
     expect(labels(detailRows(todo({ dueDate: undefined }), 'UTC', '2026-08-07'))).not.toContain('期限')
   })
 
-  test('there is no priority row for none, or for a todo predating the field', () => {
-    expect(labels(detailRows(todo({ priority: 'none' }), 'UTC'))).not.toContain('優先度')
-    expect(labels(detailRows(todo({ priority: undefined }), 'UTC'))).not.toContain('優先度')
+  test('there is no priority row when both levels are 1, or for a todo predating the fields', () => {
+    expect(labels(detailRows(todo({ urgency: 1, importance: 1 }), 'UTC'))).not.toContain('優先度')
+    expect(labels(detailRows(todo({ urgency: undefined, importance: undefined }), 'UTC'))).not.toContain('優先度')
   })
 
   test('model is flagged mono and dropped when the todo uses the default', () => {

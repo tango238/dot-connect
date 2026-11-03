@@ -2,6 +2,7 @@
 // complete/reopen, delete, and the sidebar's active-milestone list.
 
 import { api } from './api.js'
+import { levelOptions, priorityBadge } from './lib/priority.js'
 import { refreshBoth, refreshLabelsAndMilestones } from './data.js'
 import { shouldRestoreCapturedForm } from './lib/formCapture.js'
 import { hasOpenForm } from './lib/formGuard.js'
@@ -103,6 +104,14 @@ function editMsForm(m) {
       <select id="ms-edit-label-${m.id}">${labelSelectOptions(m.labelId)}</select>
     </div>
     <div class="form-field">
+      <label for="ms-edit-urgency-${m.id}">緊急度</label>
+      <select id="ms-edit-urgency-${m.id}">${levelOptions(m.urgency)}</select>
+    </div>
+    <div class="form-field">
+      <label for="ms-edit-importance-${m.id}">重要度</label>
+      <select id="ms-edit-importance-${m.id}">${levelOptions(m.importance)}</select>
+    </div>
+    <div class="form-field">
       <label for="ms-edit-start-${m.id}">開始日</label>
       <input id="ms-edit-start-${m.id}" type="date" required value="${escapeHtml(m.startDate.slice(0, 10))}">
     </div>
@@ -126,6 +135,12 @@ function labelChip(m) {
   return `<span class="ms-chip label-chip" role="button" tabindex="0" data-label-chip data-id="${m.id}" title="クリックして変更/解除" style="color:${color};background:color-mix(in srgb, ${color} 14%, transparent)"><span class="ms-dot" style="background:${color}"></span>${escapeHtml(m.labelName)}</span>`
 }
 
+function priorityChip(m) {
+  const badge = priorityBadge(m)
+  if (!badge) return ''
+  return `<span class="prio-badge ${badge.className}" title="${badge.title}">${badge.label}</span>`
+}
+
 function msCard(m) {
   const linked = linkedTodosFor(m.id)
   const dn = m.doneCount
@@ -144,7 +159,7 @@ function msCard(m) {
 
   return `<div class="ms-card ${m.status === 'done' ? 'is-done' : ''}" data-ms-id="${m.id}">
     <div class="ms-card-head"><span class="ms-dot" style="background:${escapeHtml(m.color)}"></span><h2>${escapeHtml(m.title)}</h2>${dueOrDone}</div>
-    <div class="ms-card-meta">${labelChip(m)}</div>
+    <div class="ms-card-meta">${labelChip(m)}${priorityChip(m)}</div>
     <p class="ms-desc">${escapeHtml(m.description)}</p>
     <div class="ms-bar"><div style="width:${pct}%;background:${escapeHtml(m.color)}"></div></div>
     <div class="ms-stats"><span>${dn} / ${total} 完了</span><span>${pct}%</span></div>
@@ -225,6 +240,14 @@ function renderNewMsForm() {
       <select id="ms-label">${labelSelectOptions(null)}</select>
     </div>
     <div class="form-field">
+      <label for="ms-urgency">緊急度</label>
+      <select id="ms-urgency">${levelOptions(1)}</select>
+    </div>
+    <div class="form-field">
+      <label for="ms-importance">重要度</label>
+      <select id="ms-importance">${levelOptions(1)}</select>
+    </div>
+    <div class="form-field">
       <label for="ms-start">開始日</label>
       <input id="ms-start" type="date" required>
     </div>
@@ -255,6 +278,8 @@ async function createMilestone() {
       startDate,
       targetDate,
       labelId: labelRaw ? Number(labelRaw) : null,
+      urgency: Number($('#ms-urgency').value),
+      importance: Number($('#ms-importance').value),
     })
     toast('マイルストーンを作成しました')
     $('#new-ms-form').hidden = true
@@ -340,6 +365,8 @@ async function saveMilestoneEdit(id) {
       startDate,
       targetDate,
       labelId: labelRaw ? Number(labelRaw) : null,
+      urgency: Number($(`#ms-edit-urgency-${id}`)?.value ?? 1),
+      importance: Number($(`#ms-edit-importance-${id}`)?.value ?? 1),
     })
     toast('マイルストーンを更新しました')
     editFormMsId = null

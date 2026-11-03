@@ -5,16 +5,8 @@ import { buildModelSelectChoices } from './lib/modelOptions.js'
 import { getState } from './state.js'
 import { escapeHtml } from './utils.js'
 
-export function priorityOptions(selected) {
-  const options = [
-    { value: 'none', label: 'なし' },
-    { value: 'low', label: '低' },
-    { value: 'high', label: '高' },
-  ]
-  return options
-    .map((o) => `<option value="${o.value}" ${o.value === selected ? 'selected' : ''}>${o.label}</option>`)
-    .join('')
-}
+// 緊急度・重要度(1〜5)の <select>。中身は lib/priority.js の levelOptions。
+export { levelOptions as priorityLevelOptions } from './lib/priority.js'
 
 export function modelOptions(selected) {
   return buildModelSelectChoices(getState().models)

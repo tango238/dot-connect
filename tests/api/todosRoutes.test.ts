@@ -29,12 +29,12 @@ describe('GET /api/todos', () => {
     expect(body.data[0].milestoneColor).toBe('#123456')
   })
 
-  test('orders todos high -> low -> none, ties in existing (id) order', async () => {
+  test('orders todos by urgency+importance descending, ties in existing (id) order', async () => {
     const { app, deps } = createTestApp()
     todoRepo.create(deps.db, { title: 'a-none' })
-    todoRepo.create(deps.db, { title: 'b-high', priority: 'high' })
-    todoRepo.create(deps.db, { title: 'c-low', priority: 'low' })
-    todoRepo.create(deps.db, { title: 'd-high', priority: 'high' })
+    todoRepo.create(deps.db, { title: 'b-high', urgency: 5 })
+    todoRepo.create(deps.db, { title: 'c-low', urgency: 3 })
+    todoRepo.create(deps.db, { title: 'd-high', urgency: 5 })
 
     const res = await app.request('/api/todos')
     const body = await readJson(res)
@@ -127,7 +127,7 @@ describe('POST /api/todos', () => {
     expect(body.error).toContain('削除されています')
   })
 
-  test('defaults priority to none when omitted', async () => {
+  test('defaults urgency and importance to 1 when omitted', async () => {
     const { app } = createTestApp()
     const res = await app.request('/api/todos', {
       method: 'POST',
@@ -135,29 +135,32 @@ describe('POST /api/todos', () => {
       body: JSON.stringify({ title: 'x' }),
     })
     const body = await readJson(res)
-    expect(body.data.priority).toBe('none')
+    expect(body.data).toMatchObject({ urgency: 1, importance: 1 })
+    expect(body.data.priority).toBeUndefined()
   })
 
-  test('creates a todo with an explicit priority', async () => {
+  test('creates a todo with explicit urgency and importance', async () => {
     const { app } = createTestApp()
     const res = await app.request('/api/todos', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ title: 'x', priority: 'high' }),
+      body: JSON.stringify({ title: 'x', urgency: 5, importance: 4 }),
     })
     const body = await readJson(res)
     expect(res.status).toBe(201)
-    expect(body.data.priority).toBe('high')
+    expect(body.data).toMatchObject({ urgency: 5, importance: 4 })
   })
 
-  test('returns 400 for an invalid priority value', async () => {
+  test('returns 400 for an out-of-range or non-integer level', async () => {
     const { app } = createTestApp()
-    const res = await app.request('/api/todos', {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ title: 'x', priority: 'urgent' }),
-    })
-    expect(res.status).toBe(400)
+    for (const body of [{ urgency: 6 }, { importance: 0 }, { urgency: 2.5 }, { urgency: 'high' }]) {
+      const res = await app.request('/api/todos', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ title: 'x', ...body }),
+      })
+      expect(res.status).toBe(400)
+    }
   })
 
   test('creates a todo with a workspacePath, trimmed', async () => {
@@ -489,38 +492,38 @@ describe('PATCH /api/todos/:id', () => {
     expect(todoRepo.getById(deps.db, todo.id)?.model).toBeNull()
   })
 
-  test('updates the priority', async () => {
+  test('updates urgency and importance independently', async () => {
     const { app, deps } = createTestApp()
     const todo = todoRepo.create(deps.db, { title: 'x' })
     const res = await app.request(`/api/todos/${todo.id}`, {
       method: 'PATCH',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ priority: 'high' }),
+      body: JSON.stringify({ urgency: 5 }),
     })
     const body = await readJson(res)
     expect(res.status).toBe(200)
-    expect(body.data.priority).toBe('high')
+    expect(body.data).toMatchObject({ urgency: 5, importance: 1 })
   })
 
-  test('omitting priority leaves it at its current value', async () => {
+  test('omitting urgency/importance leaves them at their current values', async () => {
     const { app, deps } = createTestApp()
-    const todo = todoRepo.create(deps.db, { title: 'x', priority: 'low' })
+    const todo = todoRepo.create(deps.db, { title: 'x', urgency: 3, importance: 2 })
     const res = await app.request(`/api/todos/${todo.id}`, {
       method: 'PATCH',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ title: 'renamed' }),
     })
     const body = await readJson(res)
-    expect(body.data.priority).toBe('low')
+    expect(body.data).toMatchObject({ urgency: 3, importance: 2 })
   })
 
-  test('returns 400 for an invalid priority value', async () => {
+  test('returns 400 for an invalid level value', async () => {
     const { app, deps } = createTestApp()
     const todo = todoRepo.create(deps.db, { title: 'x' })
     const res = await app.request(`/api/todos/${todo.id}`, {
       method: 'PATCH',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ priority: 'urgent' }),
+      body: JSON.stringify({ importance: 'urgent' }),
     })
     expect(res.status).toBe(400)
   })

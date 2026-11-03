@@ -71,7 +71,8 @@ describe('computeWeeklyStats', () => {
     expect(stats.fastest.map((t) => t.title)).toEqual(['t1', 't2', 't3', 't4', 't5'])
     expect(stats.fastest.map((t) => t.leadMinutes)).toEqual([60, 120, 180, 240, 300])
     expect(stats.fastest[0]).toMatchObject({
-      priority: 'none',
+      urgency: 1,
+      importance: 1,
       milestoneTitle: null,
       createdAt: '2026-07-21 10:00:00',
       completedAt: '2026-07-21 11:00:00',
@@ -101,11 +102,13 @@ describe('computeWeeklyStats', () => {
     expect(stats.onTime).toEqual({ withDueCount: 3, onTimeCount: 2 })
   })
 
-  test('byPriority always carries all three keys', () => {
-    todo('h', '2026-07-20 10:00:00', '2026-07-21 12:00:00', { priority: 'high' })
-    todo('h2', '2026-07-20 10:00:00', '2026-07-21 12:00:00', { priority: 'high' })
+  test('byUrgency / byImportance always carry all five levels', () => {
+    todo('h', '2026-07-20 10:00:00', '2026-07-21 12:00:00', { urgency: 5, importance: 2 })
+    todo('h2', '2026-07-20 10:00:00', '2026-07-21 12:00:00', { urgency: 5 })
     todo('n', '2026-07-20 10:00:00', '2026-07-21 12:00:00')
-    expect(computeWeeklyStats(db, '2026-07-20', '2026-07-30').byPriority).toEqual({ high: 2, low: 0, none: 1 })
+    const stats = computeWeeklyStats(db, '2026-07-20', '2026-07-30')
+    expect(stats.byUrgency).toEqual({ 1: 1, 2: 0, 3: 0, 4: 0, 5: 2 })
+    expect(stats.byImportance).toEqual({ 1: 2, 2: 1, 3: 0, 4: 0, 5: 0 })
   })
 
   test('byMilestone groups by the milestone at completion time, naming unlinked and deleted ones', () => {

@@ -20,13 +20,14 @@ function columnsOf(db: Database, table: string): ColumnRow[] {
   return db.query(`PRAGMA table_info(${table})`).all() as ColumnRow[]
 }
 
-// Additive columns for installs created before they existed. CREATE TABLE IF
-// NOT EXISTS alone only helps fresh databases; existing ones need an ALTER
-// TABLE, which SQLite has no "IF NOT EXISTS" form for.
-export function ensureColumn(db: Database, table: string, column: string, definition: string): void {
-  if (!columnsOf(db, table).some((c) => c.name === column)) {
-    db.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${definition}`)
+// Returns true when the column was just added, so the caller can backfill
+// it once from older columns (see database.ts's ADDITIVE_COLUMNS).
+export function ensureColumn(db: Database, table: string, column: string, definition: string): boolean {
+  if (columnsOf(db, table).some((c) => c.name === column)) {
+    return false
   }
+  db.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${definition}`)
+  return true
 }
 
 // completed_milestone_id is a historical snapshot: it must survive the
@@ -68,7 +69,9 @@ function rebuildTodosTable(db: Database): void {
       updated_at TEXT,
       grill_dir TEXT,
       scheduled_start TEXT,
-      scheduled_end TEXT
+      scheduled_end TEXT,
+      urgency INTEGER NOT NULL DEFAULT 1 CHECK(urgency BETWEEN 1 AND 5),
+      importance INTEGER NOT NULL DEFAULT 1 CHECK(importance BETWEEN 1 AND 5)
     )`)
     // todos_old already has description, priority, model, grill_dir AND
     // scheduled_start/scheduled_end at this point:
@@ -83,12 +86,12 @@ function rebuildTodosTable(db: Database): void {
       id, title, description, milestone_id, status, priority, workspace_path,
       herdr_workspace_id, herdr_tab_id, herdr_pane_id,
       session_state, dispatched_at, completed_at, completed_milestone_id, model, due_date, created_at, updated_at, grill_dir,
-      scheduled_start, scheduled_end
+      scheduled_start, scheduled_end, urgency, importance
     ) SELECT
       id, title, description, milestone_id, status, priority, workspace_path,
       herdr_workspace_id, herdr_tab_id, herdr_pane_id,
       session_state, dispatched_at, completed_at, completed_milestone_id, model, due_date, created_at, updated_at, grill_dir,
-      scheduled_start, scheduled_end
+      scheduled_start, scheduled_end, urgency, importance
     FROM todos_old`)
     db.exec('DROP TABLE todos_old')
   })

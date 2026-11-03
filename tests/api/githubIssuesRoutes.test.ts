@@ -118,7 +118,7 @@ describe('POST /api/github/issues/import', () => {
     expect(calls.map((c) => c.slice(1, 4))).toEqual([['issue', 'view', '12'], ['issue', 'view', '13']])
   })
 
-  test('applies milestone, priority, workspacePath and model to every created TODO', async () => {
+  test('applies milestone, urgency/importance, workspacePath and model to every created TODO', async () => {
     const { exec } = fakeGh([12, 13])
     const { app, deps } = createTestApp({ exec })
     const ms = milestoneRepo.create(deps.db, { title: 'v1', startDate: '2026-10-01', targetDate: '2026-10-31' })
@@ -126,13 +126,14 @@ describe('POST /api/github/issues/import', () => {
       repo: REPO,
       numbers: [12, 13],
       milestoneId: ms.id,
-      priority: 'high',
+      urgency: 5,
+      importance: 2,
       workspacePath: '/Users/me/my-app',
       model: 'opus',
     })
     expect(res.status).toBe(201)
     for (const todo of todoRepo.listAll(deps.db)) {
-      expect(todo).toMatchObject({ milestoneId: ms.id, priority: 'high', workspacePath: '/Users/me/my-app', model: 'opus' })
+      expect(todo).toMatchObject({ milestoneId: ms.id, urgency: 5, importance: 2, workspacePath: '/Users/me/my-app', model: 'opus' })
     }
   })
 

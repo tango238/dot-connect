@@ -7,6 +7,7 @@
 // 同じ理由 —— 日付が1日ずれる。
 
 import { isIsoDate } from './isoDate.js'
+import { comparePriority } from './priority.js'
 
 const LOCAL_DATETIME_PATTERN = /^(\d{4}-\d{2}-\d{2})T(\d{2}):(\d{2})$/
 const TIME_PATTERN = /^\d{2}:\d{2}$/
@@ -84,19 +85,13 @@ export function scheduledTodosOn(todos, date) {
 }
 
 /**
- * その日が期日の TODO。未完了が先、同じ側は優先度(high→low→none)、id 順。
+ * その日が期日の TODO。未完了が先、同じ側は優先順位(緊急度+重要度)、id 順。
  * Google カレンダーの「終日」欄に相当し、タイムラインとは別に一覧する。
  */
 export function dueTodosOn(todos, date) {
-  const rank = { high: 0, low: 1 }
   return todos
     .filter((t) => isIsoDate(t.dueDate) && t.dueDate === date)
-    .sort(
-      (a, b) =>
-        Number(a.status === 'done') - Number(b.status === 'done') ||
-        (rank[a.priority] ?? 2) - (rank[b.priority] ?? 2) ||
-        a.id - b.id
-    )
+    .sort((a, b) => Number(a.status === 'done') - Number(b.status === 'done') || comparePriority(a, b) || a.id - b.id)
 }
 
 /**

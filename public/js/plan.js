@@ -5,6 +5,7 @@
 
 import { computeRange, hasValidRange, posPct } from './lib/planRange.js'
 import { dueTodos, groupDueTodosByMilestone } from './lib/planTodos.js'
+import { comparePriority, priorityBadge } from './lib/priority.js'
 import { getState } from './state.js'
 import { openTodoDetail } from './todoDetailDialog.js'
 import { $, escapeHtml, formatMonthDay, todayIso } from './utils.js'
@@ -36,10 +37,12 @@ function planRow(m, start, end, today) {
   const width = Math.max(posPct(m.targetDate, start, end) - left, 3)
   const late = m.status !== 'done' && m.targetDate < today
   const metaSuffix = m.status === 'done' ? ' · 完了' : late ? ' · 期限超過' : ''
+  const badge = priorityBadge(m)
+  const prio = badge ? `<span class="prio-badge ${badge.className}" title="${badge.title}">${badge.label}</span>` : ''
   return `<div class="plan-row" data-action="goto-milestones">
     <div class="plan-label">
       <div class="pl-name"><span class="ms-dot" style="width:8px;height:8px;border-radius:3px;background:${escapeHtml(m.color)}"></span>${escapeHtml(m.title)}</div>
-      <div class="pl-meta ${late ? 'late' : ''}">${formatMonthDay(m.startDate)} → ${formatMonthDay(m.targetDate)}${metaSuffix}</div>
+      <div class="pl-meta ${late ? 'late' : ''}">${formatMonthDay(m.startDate)} → ${formatMonthDay(m.targetDate)}${metaSuffix}${prio ? ` ${prio}` : ''}</div>
     </div>
     <div class="plan-track">
       <div class="plan-bar ${m.status === 'done' ? 'pb-done' : ''}" style="left:${left}%;width:${width}%">
@@ -102,8 +105,13 @@ export function renderPlan() {
     return
   }
 
+  // 未完了が先、その中は優先順位(緊急度+重要度、同点は緊急度)の高い順、
+  // 同じなら期限の近い順。完了は末尾に期限順。
   const rows = [...milestones].sort(
-    (a, b) => Number(a.status === 'done') - Number(b.status === 'done') || (a.targetDate < b.targetDate ? -1 : 1)
+    (a, b) =>
+      Number(a.status === 'done') - Number(b.status === 'done') ||
+      (a.status !== 'done' ? comparePriority(a, b) : 0) ||
+      (a.targetDate < b.targetDate ? -1 : a.targetDate > b.targetDate ? 1 : a.id - b.id)
   )
   // TODOs whose milestone was excluded for bad dates have no row to sit
   // under, so they fall into the trailing group rather than disappearing.

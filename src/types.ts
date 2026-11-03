@@ -1,5 +1,4 @@
 export type TodoStatus = 'open' | 'done'
-export type TodoPriority = 'none' | 'low' | 'high'
 export type SessionState = 'working' | 'blocked' | 'done' | 'idle' | null
 export type MilestoneStatus = 'active' | 'done'
 export type PullRequestState = 'open' | 'closed' | 'merged'
@@ -33,6 +32,10 @@ export interface Milestone {
   readonly targetDate: string
   readonly status: MilestoneStatus
   readonly doneAt: string | null
+  // 緊急度・重要度(1〜5、1 が最低/未設定、5 が最高)。計画ページの並び順に
+  // 使う —— services/priority.ts 参照。
+  readonly urgency: number
+  readonly importance: number
   // A milestone carries at most one label (NULL if unset): multiple labels
   // would make label-grouped list views show the same card in more than one
   // group, which doesn't make sense for a flat grouping UI.
@@ -110,7 +113,10 @@ export interface Todo {
   readonly milestoneTitle: string | null
   readonly milestoneColor: string | null
   readonly status: TodoStatus
-  readonly priority: TodoPriority
+  // 緊急度・重要度(1〜5)。マイルストーンと同じ規則(services/priority.ts)。
+  // 旧 priority(none/low/high)は緊急度 1/3/5 に移行済みで、API からは消えた。
+  readonly urgency: number
+  readonly importance: number
   // Date-only string (YYYY-MM-DD), no timezone handling. null means no due
   // date is set.
   readonly dueDate: string | null

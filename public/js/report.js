@@ -24,7 +24,6 @@ import { getState, setState } from './state.js'
 import { openTodoDetail } from './todoDetailDialog.js'
 import { $, escapeHtml, formatMonthDay, toast, toastError, todayIso } from './utils.js'
 
-const PRIORITY_LABEL = { high: '高', low: '低', none: 'なし' }
 
 function currentWeekStart() {
   // todayIso() reads local wall-clock date; new Date().toISOString() would
@@ -134,18 +133,23 @@ function hbar(label, count, counts, color = null) {
 }
 
 function breakdownSection(stats) {
-  const prioCounts = ['high', 'low', 'none'].map((p) => stats.byPriority[p] ?? 0)
-  const priorities = ['high', 'low', 'none']
-    .map((p, i) => hbar(`優先度 ${PRIORITY_LABEL[p]}`, prioCounts[i], prioCounts))
-    .join('')
+  const levels = [5, 4, 3, 2, 1]
+  const levelBars = (label, counts) => {
+    const values = levels.map((l) => counts?.[l] ?? 0)
+    return levels.map((l, i) => hbar(`${label} ${l}`, values[i], values)).join('')
+  }
+  const urgency = levelBars('緊急度', stats.byUrgency)
+  const importance = levelBars('重要度', stats.byImportance)
   const msCounts = stats.byMilestone.map((m) => m.count)
   const milestones = stats.byMilestone.length
     ? stats.byMilestone.map((m) => hbar(m.title, m.count, msCounts, m.color)).join('')
     : `<p>この週に完了したTODOはありません。</p>`
   return `<div class="rep-sec">
     <h2>内訳</h2>
-    <div class="rep-sub-h">完了の優先度</div>
-    ${priorities}
+    <div class="rep-sub-h">完了の緊急度</div>
+    ${urgency}
+    <div class="rep-sub-h">完了の重要度</div>
+    ${importance}
     <div class="rep-sub-h">完了の多いマイルストーン</div>
     ${milestones}
     <div class="rep-sub-h">未完了の状況(現在)</div>

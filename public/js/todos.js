@@ -10,7 +10,7 @@ import { dueBadge } from './lib/dueBadge.js'
 import { shouldRestoreCapturedForm } from './lib/formCapture.js'
 import { modelBadge } from './lib/modelBadge.js'
 import { buildModelCreatePatch } from './lib/modelPatch.js'
-import { priorityBadge } from './lib/priorityBadge.js'
+import { priorityBadge } from './lib/priority.js'
 import { buildSchedulePatch, formatSchedule } from './lib/schedule.js'
 import { pullRequestCount } from './lib/pullRequest.js'
 import { SESSION_LABEL } from './lib/todoDetail.js'
@@ -26,7 +26,7 @@ import { openWorkspaceManager } from './workspaceManager.js'
 import { openIssueImportDialog } from './issueImportDialog.js'
 import { activeMilestones, getState, setState } from './state.js'
 import { isEditingTodoDetail, openTodoDetail } from './todoDetailDialog.js'
-import { modelOptions, priorityOptions } from './todoFormOptions.js'
+import { modelOptions, priorityLevelOptions } from './todoFormOptions.js'
 import { $, $all, escapeHtml, toast, toastError, toastWarning, todayIso, twoStepConfirm, withButtonBusy } from './utils.js'
 
 // Synthetic id for the new-todo form in captureOpenFormValues/
@@ -59,9 +59,9 @@ function dueBadgeHtml(todo) {
 }
 
 function prioBadge(todo) {
-  const badge = priorityBadge(todo.priority)
+  const badge = priorityBadge(todo)
   if (!badge) return ''
-  return `<span class="prio-badge ${badge.className}">${badge.label}</span>`
+  return `<span class="prio-badge ${badge.className}" title="${badge.title}">${badge.label}</span>`
 }
 
 // スケジュールに置いた時間帯。期日バッジと同じく、完了した TODO では出さない。
@@ -265,8 +265,12 @@ function renderNewTodoForm() {
       <select id="new-todo-ms"><option value="">未紐付け</option>${milestoneOptions(null)}</select>
     </div>
     <div class="form-field">
-      <label for="new-todo-priority">優先度</label>
-      <select id="new-todo-priority">${priorityOptions('none')}</select>
+      <label for="new-todo-urgency">緊急度</label>
+      <select id="new-todo-urgency">${priorityLevelOptions(1)}</select>
+    </div>
+    <div class="form-field">
+      <label for="new-todo-importance">重要度</label>
+      <select id="new-todo-importance">${priorityLevelOptions(1)}</select>
     </div>
     <div class="form-field">
       <label for="new-todo-due">期限(任意)</label>
@@ -395,7 +399,8 @@ async function createTodo() {
   if (!title) return
   const description = $('#new-todo-desc').value.trim()
   const msRaw = $('#new-todo-ms').value
-  const priority = $('#new-todo-priority').value
+  const urgency = Number($('#new-todo-urgency').value)
+  const importance = Number($('#new-todo-importance').value)
   // 空欄は「期限なし」。作成時は null を送っても省略しても同じだが、更新と
   // 同じ形にしておく。
   const dueRaw = $('#new-todo-due').value
@@ -415,7 +420,8 @@ async function createTodo() {
       title,
       description,
       milestoneId: msRaw ? Number(msRaw) : null,
-      priority,
+      urgency,
+      importance,
       dueDate: dueRaw || null,
       ...schedule,
       ...buildWorkspacePathCreatePatch(wsRaw),
@@ -501,7 +507,8 @@ function captureOpenFormValues() {
       title: $('#new-todo-title')?.value,
       desc: $('#new-todo-desc')?.value,
       ms: $('#new-todo-ms')?.value,
-      priority: $('#new-todo-priority')?.value,
+      urgency: $('#new-todo-urgency')?.value,
+      importance: $('#new-todo-importance')?.value,
       due: $('#new-todo-due')?.value,
       schedDate: $('#new-todo-sched-date')?.value,
       schedStart: $('#new-todo-sched-start')?.value,
@@ -532,7 +539,8 @@ function restoreOpenFormValues(captured) {
       setFieldValue('new-todo-title', entry.title)
       setFieldValue('new-todo-desc', entry.desc)
       setFieldValue('new-todo-ms', entry.ms)
-      setFieldValue('new-todo-priority', entry.priority)
+      setFieldValue('new-todo-urgency', entry.urgency)
+      setFieldValue('new-todo-importance', entry.importance)
       setFieldValue('new-todo-due', entry.due)
       setFieldValue('new-todo-sched-date', entry.schedDate)
       setFieldValue('new-todo-sched-start', entry.schedStart)

@@ -4,10 +4,10 @@ import type {
   Todo,
   TodoAttachment,
   TodoComment,
-  TodoPriority,
   TodoPullRequest,
   TodoStatus,
 } from '../types'
+import { PRIORITY_DEFAULT, prioritySqlOrder } from '../services/priority'
 import * as todoAttachmentRepo from './todoAttachmentRepo'
 import * as todoCommentRepo from './todoCommentRepo'
 import * as todoPullRequestRepo from './todoPullRequestRepo'
@@ -21,7 +21,8 @@ interface TodoRow {
   milestone_title: string | null
   milestone_color: string | null
   status: TodoStatus
-  priority: TodoPriority
+  urgency: number
+  importance: number
   due_date: string | null
   scheduled_start: string | null
   scheduled_end: string | null
@@ -43,7 +44,7 @@ const SELECT_WITH_MILESTONE = `
   SELECT
     t.id, t.title, t.description, t.milestone_id,
     m.title AS milestone_title, m.color AS milestone_color,
-    t.status, t.priority, t.workspace_path,
+    t.status, t.urgency, t.importance, t.workspace_path,
     t.herdr_workspace_id, t.herdr_tab_id, t.herdr_pane_id,
     t.session_state, t.dispatched_at, t.completed_at, t.completed_milestone_id, t.model, t.due_date,
     t.scheduled_start, t.scheduled_end,
@@ -57,13 +58,14 @@ const SELECT_WITH_MILESTONE = `
 // 呼ばず SET 句に畳んでいるだけで、線引きの根拠はあちらを見ること。
 
 // 期限ありが先(期限の昇順 — 過期が自然に最上部に来る)、期限なしはその後ろ
-// で優先度順。同順位は id 昇順で安定させる。完了状態はここでは考慮しない
-// ——完了のグループ分けはフロントの責務(renderTodoList)。
+// で優先順位順(緊急度+重要度、services/priority.ts)。同順位は id 昇順で
+// 安定させる。完了状態はここでは考慮しない——完了のグループ分けはフロントの
+// 責務(renderTodoList)。
 const ORDER_BY_DUE_THEN_PRIORITY = `
   ORDER BY
     CASE WHEN t.due_date IS NULL THEN 1 ELSE 0 END,
     t.due_date ASC,
-    CASE t.priority WHEN 'high' THEN 0 WHEN 'low' THEN 1 ELSE 2 END,
+    ${prioritySqlOrder('t')},
     t.id ASC
 `
 
@@ -81,7 +83,8 @@ function mapRow(
     milestoneTitle: row.milestone_title,
     milestoneColor: row.milestone_color,
     status: row.status,
-    priority: row.priority,
+    urgency: row.urgency,
+    importance: row.importance,
     dueDate: row.due_date,
     scheduledStart: row.scheduled_start,
     scheduledEnd: row.scheduled_end,
@@ -139,7 +142,9 @@ export interface CreateTodoInput {
   readonly title: string
   readonly description?: string
   readonly milestoneId?: number | null
-  readonly priority?: TodoPriority
+  // 1〜5(schemas.ts が検査)。省略は 1(最低)。
+  readonly urgency?: number
+  readonly importance?: number
   readonly dueDate?: string | null
   // 両方入れるか両方省くか(schemas.ts が保証する)。片方だけ渡されたら、
   // 渡されなかった方は null になる —— 予定は常にペアで読む前提なので、
@@ -153,13 +158,14 @@ export interface CreateTodoInput {
 export function create(db: Database, input: CreateTodoInput): Todo {
   const result = db
     .query(
-      `INSERT INTO todos (title, description, milestone_id, priority, workspace_path, model, due_date, scheduled_start, scheduled_end) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id`
+      `INSERT INTO todos (title, description, milestone_id, urgency, importance, workspace_path, model, due_date, scheduled_start, scheduled_end) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id`
     )
     .get(
       input.title,
       input.description ?? '',
       input.milestoneId ?? null,
-      input.priority ?? 'none',
+      input.urgency ?? PRIORITY_DEFAULT,
+      input.importance ?? PRIORITY_DEFAULT,
       input.workspacePath ?? null,
       input.model ?? null,
       input.dueDate ?? null,
@@ -177,7 +183,8 @@ export interface UpdateTodoInput {
   readonly title?: string
   readonly description?: string
   readonly milestoneId?: number | null
-  readonly priority?: TodoPriority
+  readonly urgency?: number
+  readonly importance?: number
   // Same undefined/null convention as workspacePath/model below: undefined
   // leaves the stored due date untouched, null explicitly clears it.
   readonly dueDate?: string | null
@@ -213,9 +220,13 @@ export function update(db: Database, id: number, input: UpdateTodoInput): Todo |
     sets.push('milestone_id = ?')
     values.push(input.milestoneId)
   }
-  if (input.priority !== undefined) {
-    sets.push('priority = ?')
-    values.push(input.priority)
+  if (input.urgency !== undefined) {
+    sets.push('urgency = ?')
+    values.push(input.urgency)
+  }
+  if (input.importance !== undefined) {
+    sets.push('importance = ?')
+    values.push(input.importance)
   }
   if (input.dueDate !== undefined) {
     sets.push('due_date = ?')

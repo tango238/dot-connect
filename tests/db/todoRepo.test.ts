@@ -23,7 +23,8 @@ describe('todoRepo.create', () => {
     expect(todo.milestoneId).toBeNull()
     expect(todo.sessionState).toBeNull()
     expect(todo.description).toBe('')
-    expect(todo.priority).toBe('none')
+    expect(todo.urgency).toBe(1)
+    expect(todo.importance).toBe(1)
   })
 })
 
@@ -31,7 +32,7 @@ describe('todoRepo.listAll priority ordering', () => {
   test('does not factor completion status into the ordering (repository layer is priority-only)', () => {
     // Neither todo has a due date, so this exercises the priority-then-id
     // ordering that applies among due-date-less todos.
-    const doneHigh = todoRepo.create(db, { title: 'done-high', priority: 'high' })
+    const doneHigh = todoRepo.create(db, { title: 'done-high', urgency: 5 })
     todoRepo.complete(db, doneHigh.id)
     todoRepo.create(db, { title: 'open-none' })
 
@@ -47,11 +48,11 @@ describe('todoRepo.listAll due date ordering', () => {
   test('期限ありが先、期限の昇順、期限なしは後ろで優先度順', () => {
     const db = createDatabase(':memory:')
     // 期限なし・高優先度(期限ありより後ろに来るはず)
-    todoRepo.create(db, { title: 'no-due-high', priority: 'high' })
+    todoRepo.create(db, { title: 'no-due-high', urgency: 5 })
     // 期限あり・優先度なし(先頭側に来るはず)
-    todoRepo.create(db, { title: 'due-late', priority: 'none', dueDate: '2026-12-31' })
-    todoRepo.create(db, { title: 'due-early', priority: 'none', dueDate: '2026-01-01' })
-    todoRepo.create(db, { title: 'no-due-low', priority: 'low' })
+    todoRepo.create(db, { title: 'due-late', dueDate: '2026-12-31' })
+    todoRepo.create(db, { title: 'due-early', dueDate: '2026-01-01' })
+    todoRepo.create(db, { title: 'no-due-low', urgency: 3 })
 
     expect(todoRepo.listAll(db).map((t) => t.title)).toEqual([
       'due-early',
@@ -61,13 +62,23 @@ describe('todoRepo.listAll due date ordering', () => {
     ])
   })
 
-  test('同じ期限なら優先度、さらに同じなら id 昇順', () => {
+  test('同じ期限なら優先順位(緊急度+重要度、同点は緊急度)、さらに同じなら id 昇順', () => {
     const db = createDatabase(':memory:')
-    todoRepo.create(db, { title: 'same-low', priority: 'low', dueDate: '2026-05-05' })
-    todoRepo.create(db, { title: 'same-high', priority: 'high', dueDate: '2026-05-05' })
-    todoRepo.create(db, { title: 'same-high-2', priority: 'high', dueDate: '2026-05-05' })
+    todoRepo.create(db, { title: 'same-low', urgency: 3, dueDate: '2026-05-05' })
+    todoRepo.create(db, { title: 'same-high', urgency: 5, dueDate: '2026-05-05' })
+    todoRepo.create(db, { title: 'same-high-2', urgency: 5, dueDate: '2026-05-05' })
+    // 合計点 7 だが緊急度 2 → 合計 6 の same-low(緊急度 3)より前、same-high(6)より… 合計で勝つ
+    todoRepo.create(db, { title: 'important', urgency: 2, importance: 5, dueDate: '2026-05-05' })
+    // same-high と同じ合計 6 だが緊急度が低いので後ろ
+    todoRepo.create(db, { title: 'balanced', urgency: 3, importance: 3, dueDate: '2026-05-05' })
 
-    expect(todoRepo.listAll(db).map((t) => t.title)).toEqual(['same-high', 'same-high-2', 'same-low'])
+    expect(todoRepo.listAll(db).map((t) => t.title)).toEqual(['important', 'same-high', 'same-high-2', 'balanced', 'same-low'])
+  })
+
+  test('緊急度・重要度は 1〜5 以外を DB が拒む', () => {
+    const db = createDatabase(':memory:')
+    expect(() => todoRepo.create(db, { title: 'x', urgency: 6 })).toThrow()
+    expect(() => todoRepo.create(db, { title: 'x', importance: 0 })).toThrow()
   })
 })
 

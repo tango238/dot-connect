@@ -1,5 +1,6 @@
 import type { Database, SQLQueryBindings } from 'bun:sqlite'
 import type { Milestone, MilestoneStatus, MilestoneWithProgress } from '../types'
+import { PRIORITY_DEFAULT } from '../services/priority'
 import { touchTodo } from './todoTouch'
 
 interface MilestoneRow {
@@ -11,6 +12,8 @@ interface MilestoneRow {
   target_date: string
   status: MilestoneStatus
   done_at: string | null
+  urgency: number
+  importance: number
   label_id: number | null
   label_name: string | null
   label_color: string | null
@@ -27,7 +30,7 @@ interface MilestoneWithProgressRow extends MilestoneRow {
 // this and listAll's own SELECT from drifting apart.
 const MILESTONE_COLUMNS = `
   m.id, m.title, m.description, m.color, m.start_date, m.target_date,
-  m.status, m.done_at, m.label_id, l.name AS label_name, l.color AS label_color,
+  m.status, m.done_at, m.urgency, m.importance, m.label_id, l.name AS label_name, l.color AS label_color,
   m.created_at
 `
 const FROM_WITH_LABEL = `FROM milestones m LEFT JOIN labels l ON l.id = m.label_id`
@@ -42,6 +45,8 @@ function mapRow(row: MilestoneRow): Milestone {
     targetDate: row.target_date,
     status: row.status,
     doneAt: row.done_at,
+    urgency: row.urgency,
+    importance: row.importance,
     labelId: row.label_id,
     labelName: row.label_name,
     labelColor: row.label_color,
@@ -87,13 +92,16 @@ export interface CreateMilestoneInput {
   readonly startDate: string
   readonly targetDate: string
   readonly labelId?: number | null
+  // 1〜5(schemas.ts が検査)。省略は 1(最低)。
+  readonly urgency?: number
+  readonly importance?: number
 }
 
 export function create(db: Database, input: CreateMilestoneInput): Milestone {
   const result = db
     .query(
-      `INSERT INTO milestones (title, description, color, start_date, target_date, label_id)
-       VALUES (?, ?, ?, ?, ?, ?) RETURNING id`
+      `INSERT INTO milestones (title, description, color, start_date, target_date, label_id, urgency, importance)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?) RETURNING id`
     )
     .get(
       input.title,
@@ -101,7 +109,9 @@ export function create(db: Database, input: CreateMilestoneInput): Milestone {
       input.color ?? '#6ca4f8',
       input.startDate,
       input.targetDate,
-      input.labelId ?? null
+      input.labelId ?? null,
+      input.urgency ?? PRIORITY_DEFAULT,
+      input.importance ?? PRIORITY_DEFAULT
     ) as { id: number }
   const created = getById(db, result.id)
   if (!created) {
@@ -119,6 +129,8 @@ export interface UpdateMilestoneInput {
   // undefined leaves the label untouched; null explicitly unlinks it (same
   // convention as todos' milestoneId).
   readonly labelId?: number | null
+  readonly urgency?: number
+  readonly importance?: number
 }
 
 const UPDATABLE_COLUMNS: Record<keyof UpdateMilestoneInput, string> = {
@@ -128,6 +140,8 @@ const UPDATABLE_COLUMNS: Record<keyof UpdateMilestoneInput, string> = {
   startDate: 'start_date',
   targetDate: 'target_date',
   labelId: 'label_id',
+  urgency: 'urgency',
+  importance: 'importance',
 }
 
 export function update(db: Database, id: number, input: UpdateMilestoneInput): Milestone | null {

@@ -1,7 +1,7 @@
 import type { Database } from 'bun:sqlite'
 import * as dispatchEventRepo from '../db/dispatchEventRepo'
-import type { TodoPriority } from '../types'
 import { addDaysLocal } from './localDate'
+import { PRIORITY_MAX, PRIORITY_MIN } from './priority'
 
 // 週次レポートの「数値」部分。保存せず毎回 DB から集計するので、画面を開く
 // たび・TODO が動くたびに最新になる(保存されるのは LLM 分析だけ —
@@ -16,7 +16,8 @@ export interface DailyStat {
 export interface FastTodo {
   readonly id: number
   readonly title: string
-  readonly priority: TodoPriority
+  readonly urgency: number
+  readonly importance: number
   readonly milestoneTitle: string | null
   readonly createdAt: string
   readonly completedAt: string
@@ -58,7 +59,9 @@ export interface WeeklyStats {
     readonly withDueCount: number
     readonly onTimeCount: number
   }
-  readonly byPriority: Readonly<Record<TodoPriority, number>>
+  /** 完了した TODO の緊急度別・重要度別の件数。キーは 1〜5 で必ず全部入る。 */
+  readonly byUrgency: Readonly<Record<number, number>>
+  readonly byImportance: Readonly<Record<number, number>>
   /** 完了数の多いマイルストーン順に最大 5 件(完了時点の所属で数える)。 */
   readonly byMilestone: readonly MilestoneStat[]
   /** 集計時点(週ではなく「いま」)の未完了の状況。 */
@@ -131,7 +134,8 @@ function clampLead(minutes: number): number {
 interface FastRow {
   id: number
   title: string
-  priority: TodoPriority
+  urgency: number
+  importance: number
   milestone_title: string | null
   created_at: string
   completed_at: string
@@ -141,7 +145,7 @@ interface FastRow {
 function fastestTodos(db: Database, weekStart: string, weekEnd: string): FastTodo[] {
   const rows = db
     .query(
-      `SELECT t.id, t.title, t.priority, m.title AS milestone_title, t.created_at, t.completed_at,
+      `SELECT t.id, t.title, t.urgency, t.importance, m.title AS milestone_title, t.created_at, t.completed_at,
               (julianday(t.completed_at) - julianday(t.created_at)) * 1440 AS lead_minutes
        FROM todos t
        LEFT JOIN milestones m ON m.id = t.completed_milestone_id
@@ -153,7 +157,8 @@ function fastestTodos(db: Database, weekStart: string, weekEnd: string): FastTod
   return rows.map((row) => ({
     id: row.id,
     title: row.title,
-    priority: row.priority,
+    urgency: row.urgency,
+    importance: row.importance,
     milestoneTitle: row.milestone_title,
     createdAt: row.created_at,
     completedAt: row.completed_at,
@@ -194,12 +199,13 @@ function onTimeStats(db: Database, weekStart: string, weekEnd: string): WeeklySt
   return { withDueCount: row.with_due, onTimeCount: row.on_time }
 }
 
-function byPriorityStats(db: Database, weekStart: string, weekEnd: string): Record<TodoPriority, number> {
-  const counts: Record<TodoPriority, number> = { high: 0, low: 0, none: 0 }
+function byLevelStats(db: Database, column: 'urgency' | 'importance', weekStart: string, weekEnd: string): Record<number, number> {
+  const counts: Record<number, number> = {}
+  for (let level = PRIORITY_MIN; level <= PRIORITY_MAX; level++) counts[level] = 0
   for (const row of db
-    .query(`SELECT t.priority, COUNT(*) AS count FROM todos t WHERE ${COMPLETED_IN_RANGE} GROUP BY t.priority`)
-    .all(weekStart, weekEnd) as { priority: TodoPriority; count: number }[]) {
-    counts[row.priority] = row.count
+    .query(`SELECT t.${column} AS level, COUNT(*) AS count FROM todos t WHERE ${COMPLETED_IN_RANGE} GROUP BY t.${column}`)
+    .all(weekStart, weekEnd) as { level: number; count: number }[]) {
+    counts[row.level] = row.count
   }
   return counts
 }
@@ -265,7 +271,8 @@ export function computeWeeklyStats(db: Database, weekStart: string, today: strin
     fastest: fastestTodos(db, weekStart, weekEnd),
     leadTime: leadTimeStats(db, weekStart, weekEnd),
     onTime: onTimeStats(db, weekStart, weekEnd),
-    byPriority: byPriorityStats(db, weekStart, weekEnd),
+    byUrgency: byLevelStats(db, 'urgency', weekStart, weekEnd),
+    byImportance: byLevelStats(db, 'importance', weekStart, weekEnd),
     byMilestone: byMilestoneStats(db, weekStart, weekEnd),
     backlog: backlogStats(db, today, weekStart, weekEnd),
   }

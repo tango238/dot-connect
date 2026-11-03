@@ -37,3 +37,16 @@ describe('activeMilestonesWithProgress', () => {
     expect(activeMilestonesWithProgress([milestone({ status: 'done' })])).toEqual([])
   })
 })
+
+describe('activeMilestonesWithProgress ordering', () => {
+  test('orders by urgency+importance, then urgency, then the nearest target date, then id', () => {
+    const milestones = [
+      milestone({ id: 1, targetDate: '2026-12-01' }),
+      milestone({ id: 2, targetDate: '2026-11-01', urgency: 3, importance: 3 }),
+      milestone({ id: 3, targetDate: '2026-10-01', urgency: 5, importance: 1 }),
+      milestone({ id: 4, targetDate: '2026-09-01', urgency: 1, importance: 5 }),
+      milestone({ id: 5, targetDate: '2026-08-01' }),
+    ]
+    expect(activeMilestonesWithProgress(milestones).map((m) => m.id)).toEqual([3, 2, 4, 5, 1])
+  })
+})

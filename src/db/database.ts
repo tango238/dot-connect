@@ -164,7 +164,9 @@ const MIGRATIONS: readonly string[] = [
   )`,
 ]
 
-const ADDITIVE_COLUMNS: readonly { table: string; column: string; definition: string }[] = [
+// `backfill` runs once, right after the column is first added, so values
+// that lived in an older column can be carried over (and never re-applied).
+const ADDITIVE_COLUMNS: readonly { table: string; column: string; definition: string; backfill?: string }[] = [
   { table: 'todos', column: 'completed_milestone_id', definition: 'INTEGER' },
   { table: 'weekly_reports', column: 'llm_error', definition: 'TEXT' },
   { table: 'todos', column: 'description', definition: "TEXT NOT NULL DEFAULT ''" },
@@ -203,6 +205,18 @@ const ADDITIVE_COLUMNS: readonly { table: string; column: string; definition: st
   // ない(schemas.ts が両方同時の指定を要求する)。期日 due_date とは独立。
   { table: 'todos', column: 'scheduled_start', definition: 'TEXT' },
   { table: 'todos', column: 'scheduled_end', definition: 'TEXT' },
+  // 緊急度・重要度(1〜5)。旧 priority(none/low/high)は緊急度へ移す:
+  // high → 5、low → 3、none → 1。priority 列は CHECK 制約があって落とせない
+  // (SQLite の DROP COLUMN は制約付き列を断る)ので残すが、以後は読まない。
+  {
+    table: 'todos',
+    column: 'urgency',
+    definition: 'INTEGER NOT NULL DEFAULT 1 CHECK(urgency BETWEEN 1 AND 5)',
+    backfill: "UPDATE todos SET urgency = CASE priority WHEN 'high' THEN 5 WHEN 'low' THEN 3 ELSE 1 END",
+  },
+  { table: 'todos', column: 'importance', definition: 'INTEGER NOT NULL DEFAULT 1 CHECK(importance BETWEEN 1 AND 5)' },
+  { table: 'milestones', column: 'urgency', definition: 'INTEGER NOT NULL DEFAULT 1 CHECK(urgency BETWEEN 1 AND 5)' },
+  { table: 'milestones', column: 'importance', definition: 'INTEGER NOT NULL DEFAULT 1 CHECK(importance BETWEEN 1 AND 5)' },
 ]
 
 // bun:sqlite's { create: true } creates the DB *file* but not missing parent
@@ -222,8 +236,10 @@ export function createDatabase(path: string): Database {
   for (const migration of MIGRATIONS) {
     db.exec(migration)
   }
-  for (const { table, column, definition } of ADDITIVE_COLUMNS) {
-    ensureColumn(db, table, column, definition)
+  for (const { table, column, definition, backfill } of ADDITIVE_COLUMNS) {
+    if (ensureColumn(db, table, column, definition) && backfill !== undefined) {
+      db.exec(backfill)
+    }
   }
   rebuildLegacyTables(db)
   backfillHistoricalData(db)

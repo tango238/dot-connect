@@ -27,10 +27,16 @@ const SCHEDULED_END_DESCRIPTION =
   '予定の終了。"YYYY-MM-DDTHH:MM" のローカル時刻で、scheduledStart と同じ日・開始より後。scheduledStart と必ず一緒に指定する。'
 const DUE_DATE_DESCRIPTION = '期日(YYYY-MM-DD)。予定(scheduledStart/End)とは別で、締切の日。'
 
+const priorityLevel = z.number().int().min(1).max(5)
+const URGENCY_DESCRIPTION = '緊急度 1〜5(5 が最も急ぐ。省略時 1)。重要度との合計が高い順に一覧へ並ぶ'
+const IMPORTANCE_DESCRIPTION = '重要度 1〜5(5 が最も重要。省略時 1)'
+
 export const createTodoShape = {
   title: z.string().min(1).describe('TODOのタイトル(必須)'),
   description: z.string().optional().describe('詳細説明(任意)'),
   milestoneId: z.number().int().positive().nullable().optional().describe('紐づけるマイルストーンID'),
+  urgency: priorityLevel.optional().describe(URGENCY_DESCRIPTION),
+  importance: priorityLevel.optional().describe(IMPORTANCE_DESCRIPTION),
   dueDate: z.string().min(1).optional().describe(DUE_DATE_DESCRIPTION),
   scheduledStart: z.string().min(1).optional().describe(SCHEDULED_START_DESCRIPTION),
   scheduledEnd: z.string().min(1).optional().describe(SCHEDULED_END_DESCRIPTION),
@@ -43,6 +49,8 @@ export const updateTodoShape = {
   title: z.string().min(1).optional(),
   description: z.string().optional(),
   milestoneId: z.number().int().positive().nullable().optional().describe('null で紐付け解除'),
+  urgency: priorityLevel.optional().describe(URGENCY_DESCRIPTION),
+  importance: priorityLevel.optional().describe(IMPORTANCE_DESCRIPTION),
   dueDate: z.string().min(1).nullable().optional().describe(`${DUE_DATE_DESCRIPTION} null で期日を外す。`),
   scheduledStart: z
     .string()
@@ -153,6 +161,8 @@ export function createTodo(
     title: string
     description?: string
     milestoneId?: number | null
+    urgency?: number
+    importance?: number
     dueDate?: string
     scheduledStart?: string
     scheduledEnd?: string
@@ -170,6 +180,8 @@ export function updateTodo(
     title?: string
     description?: string
     milestoneId?: number | null
+    urgency?: number
+    importance?: number
     dueDate?: string | null
     scheduledStart?: string | null
     scheduledEnd?: string | null

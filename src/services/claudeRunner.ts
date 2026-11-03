@@ -13,7 +13,8 @@ export interface WeeklyAggregateDetails {
   readonly fastestCompleted: readonly { readonly title: string; readonly leadMinutes: number; readonly milestone: string | null }[]
   readonly leadTime: { readonly averageMinutes: number | null; readonly medianMinutes: number | null }
   readonly onTime: { readonly withDueCount: number; readonly onTimeCount: number }
-  readonly byPriority: Readonly<Record<string, number>>
+  readonly byUrgency: Readonly<Record<string, number>>
+  readonly byImportance: Readonly<Record<string, number>>
   readonly byMilestone: readonly { readonly title: string; readonly count: number }[]
   readonly backlog: { readonly openCount: number; readonly overdueCount: number; readonly dueThisWeekCount: number }
 }
@@ -65,7 +66,7 @@ function buildPrompt(aggregate: WeeklyAggregate): string {
     'あなたはソフトウェアチームの週次進捗を分析するアシスタントです。',
     '次の集計データを分析し、JSONオブジェクトのみを出力してください(説明文やコードフェンスは不要)。',
     'details には登録数(createdCount)・前週(previousWeek)・日別(daily)・登録から完了が速かったTODO(fastestCompleted、leadMinutes は分)・',
-    'リードタイム(leadTime)・期日内完了(onTime)・優先度別(byPriority)・マイルストーン別(byMilestone)・未完了の状況(backlog)が入ります。',
+    'リードタイム(leadTime)・期日内完了(onTime)・緊急度別(byUrgency、1〜5 で 5 が最も急ぐ)・重要度別(byImportance、同様)・マイルストーン別(byMilestone)・未完了の状況(backlog)が入ります。',
     '完了数と登録数のバランス、日別の偏り、期日内率、未完了の積み残しに触れてください。',
     'details.goal はその週の目標(ユーザーの自由記述、null なら未記入)です。目標があれば、実績が目標にどこまで近づいたかを summary と suggestions で必ず扱ってください。',
     'JSONの形式: {"summary": string, "warnings": string[], "suggestions": string[]}',

@@ -65,7 +65,8 @@ export function aggregateDetails(stats: WeeklyStats, goal: string | null): Weekl
     })),
     leadTime: stats.leadTime,
     onTime: stats.onTime,
-    byPriority: stats.byPriority,
+    byUrgency: stats.byUrgency,
+    byImportance: stats.byImportance,
     byMilestone: stats.byMilestone.map((entry) => ({ title: entry.title, count: entry.count })),
     backlog: stats.backlog,
   }

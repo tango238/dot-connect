@@ -37,7 +37,8 @@ const todoDescription = z.string().trim().max(4000)
 // own output-length guard in dispatchService.ts).
 const TITLE_MAX_LENGTH = 200
 
-const todoPriority = z.enum(['none', 'low', 'high'])
+// 緊急度・重要度(1〜5)。範囲は services/priority.ts の MIN/MAX と同じ。
+const priorityLevel = z.number().int().min(1).max(5)
 
 // F6: shared with the registered-workspace schemas further below, so a
 // TODO's own workspacePath is bounded/shaped the same way as a registered
@@ -180,7 +181,8 @@ export const createTodoSchema = withScheduleCheck(
     title: z.string().trim().min(1).max(TITLE_MAX_LENGTH),
     description: todoDescription.optional(),
     milestoneId: z.number().int().positive().nullable().optional(),
-    priority: todoPriority.optional(),
+    urgency: priorityLevel.optional(),
+    importance: priorityLevel.optional(),
     dueDate: nullableDueDate,
     scheduledStart: nullableScheduledAt,
     scheduledEnd: nullableScheduledAt,
@@ -194,7 +196,8 @@ export const updateTodoSchema = withScheduleCheck(
     title: z.string().trim().min(1).max(TITLE_MAX_LENGTH).optional(),
     description: todoDescription.optional(),
     milestoneId: z.number().int().positive().nullable().optional(),
-    priority: todoPriority.optional(),
+    urgency: priorityLevel.optional(),
+    importance: priorityLevel.optional(),
     dueDate: nullableDueDate,
     scheduledStart: nullableScheduledAt,
     scheduledEnd: nullableScheduledAt,
@@ -211,6 +214,8 @@ export const createMilestoneSchema = z
     startDate: dateString,
     targetDate: dateString,
     labelId: z.number().int().positive().nullable().optional(),
+    urgency: priorityLevel.optional(),
+    importance: priorityLevel.optional(),
   })
   .refine(targetOnOrAfterStart, dateOrderIssue())
 
@@ -222,6 +227,8 @@ export const updateMilestoneSchema = z
     startDate: dateString.optional(),
     targetDate: dateString.optional(),
     labelId: z.number().int().positive().nullable().optional(),
+    urgency: priorityLevel.optional(),
+    importance: priorityLevel.optional(),
   })
   .refine(targetOnOrAfterStart, dateOrderIssue())
 
@@ -401,7 +408,8 @@ export const importGithubIssuesSchema = z.object({
     .refine((list) => new Set(list).size === list.length, '同じ Issue が重複しています'),
   // 作成する TODO すべてに付ける値。規約は createTodoSchema と同じ。
   milestoneId: z.number().int().positive().nullable().optional(),
-  priority: todoPriority.optional(),
+  urgency: priorityLevel.optional(),
+  importance: priorityLevel.optional(),
   workspacePath: nullableWorkspacePath,
   model: nullableModel,
 })

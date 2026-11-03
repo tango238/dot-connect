@@ -3,7 +3,7 @@
 
 import { dueBadge } from './dueBadge.js'
 import { modelBadge } from './modelBadge.js'
-import { priorityBadge } from './priorityBadge.js'
+import { formatPriority, priorityBadge } from './priority.js'
 import { formatSchedule } from './schedule.js'
 import { BUCKET_LABEL, todoBucket } from './todoFilter.js'
 
@@ -70,8 +70,7 @@ export function detailRows(todo, timeZone, today) {
   // All three badges return null for the default/unset case (and for todos
   // that predate any of these fields), which lines up with this function's
   // own rule of omitting a row rather than rendering it blank.
-  const priority = priorityBadge(todo.priority)
-  if (priority) rows.push({ label: '優先度', value: priority.label })
+  if (priorityBadge(todo)) rows.push({ label: '優先度', value: formatPriority(todo) })
   if (todo.sessionState) rows.push({ label: 'セッション', value: sessionValue(todo) })
   if (todo.workspacePath) {
     rows.push({ label: '作業ディレクトリ', value: todo.workspacePath, mono: true })

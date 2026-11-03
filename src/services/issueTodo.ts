@@ -1,4 +1,5 @@
 import type { CreateTodoInput } from '../db/todoRepo'
+import { PRIORITY_DEFAULT } from './priority'
 import type { IssueSummary } from './githubIssueService'
 
 // How a GitHub issue becomes a TODO. Pure, so the shape (and the truncation
@@ -23,7 +24,8 @@ export interface IssueTodoDefaults {
   readonly milestoneId?: number | null
   readonly workspacePath?: string | null
   readonly model?: string | null
-  readonly priority?: CreateTodoInput['priority']
+  readonly urgency?: number
+  readonly importance?: number
 }
 
 /**
@@ -40,7 +42,8 @@ export function buildIssueTodoInput(issue: IssueSummary, defaults: IssueTodoDefa
     title,
     description,
     milestoneId: defaults.milestoneId ?? null,
-    priority: defaults.priority ?? 'none',
+    urgency: defaults.urgency ?? PRIORITY_DEFAULT,
+    importance: defaults.importance ?? PRIORITY_DEFAULT,
     workspacePath: defaults.workspacePath ?? null,
     model: defaults.model ?? null,
   }

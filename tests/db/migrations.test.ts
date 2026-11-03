@@ -218,14 +218,38 @@ describe('legacy schema rebuild', () => {
     // Preexisting rows default to 'none', and other fields survive the
     // rebuild alongside it (this is the same rebuild call as the FK-drop
     // test above, exercised here specifically for the priority column).
-    expect(todo?.priority).toBe('none')
+    expect(todo?.urgency).toBe(1)
+    expect(todo?.importance).toBe(1)
     expect(todo?.title).toBe('t1')
     expect(todo?.milestoneId).toBe(milestoneId)
     expect(todo?.completedMilestoneId).toBe(milestoneId)
 
-    const updated = todoRepo.update(db, todo!.id, { priority: 'high' })
-    expect(updated?.priority).toBe('high')
+    const updated = todoRepo.update(db, todo!.id, { urgency: 5, importance: 4 })
+    expect(updated?.urgency).toBe(5)
+    expect(updated?.importance).toBe(4)
     db.close()
+  })
+
+  test('migrates the old 3-level priority into urgency once (high→5, low→3, none→1) and never again', () => {
+    createLegacySchema()
+    const seed = new Database(dbPath)
+    seed.exec(`ALTER TABLE todos ADD COLUMN priority TEXT NOT NULL DEFAULT 'none' CHECK(priority IN ('none','low','high'))`)
+    seed.run(`INSERT INTO todos (title, priority) VALUES ('h', 'high'), ('l', 'low'), ('n', 'none')`)
+    seed.run(`INSERT INTO milestones (title, start_date, target_date) VALUES ('M', '2026-01-01', '2026-02-01')`)
+    seed.close()
+
+    const db = createDatabase(dbPath)
+    const byTitle = Object.fromEntries(todoRepo.listAll(db).map((t) => [t.title, [t.urgency, t.importance]]))
+    expect(byTitle).toEqual({ h: [5, 1], l: [3, 1], n: [1, 1] })
+    expect(milestoneRepo.listAll(db)[0]).toMatchObject({ urgency: 1, importance: 1 })
+
+    // 移行後に変えた値は、次の起動(列は既にある)で旧 priority から上書きされない
+    const h = todoRepo.listAll(db).find((t) => t.title === 'h')!
+    todoRepo.update(db, h.id, { urgency: 2 })
+    db.close()
+    const again = createDatabase(dbPath)
+    expect(again.query('SELECT urgency FROM todos WHERE id = ?').get(h.id)).toEqual({ urgency: 2 })
+    again.close()
   })
 
   test('rebuild does not drop the model column added by ensureColumn just before it', () => {

@@ -16,7 +16,7 @@ import {
 } from '../../public/js/lib/schedule.js'
 
 function todo(id, scheduledStart, scheduledEnd, extra = {}) {
-  return { id, title: `T${id}`, status: 'open', priority: 'none', dueDate: null, scheduledStart, scheduledEnd, ...extra }
+  return { id, title: `T${id}`, status: 'open', urgency: 1, importance: 1, dueDate: null, scheduledStart, scheduledEnd, ...extra }
 }
 
 describe('isLocalDateTime / splitLocalDateTime', () => {
@@ -83,8 +83,8 @@ describe('dueTodosOn', () => {
   test('lists the day’s due TODOs open-first, then by priority, then id', () => {
     const todos = [
       todo(1, null, null, { dueDate: '2026-10-30', status: 'done' }),
-      todo(2, null, null, { dueDate: '2026-10-30', priority: 'low' }),
-      todo(3, null, null, { dueDate: '2026-10-30', priority: 'high' }),
+      todo(2, null, null, { dueDate: '2026-10-30', urgency: 3 }),
+      todo(3, null, null, { dueDate: '2026-10-30', urgency: 5 }),
       todo(4, null, null, { dueDate: '2026-10-31' }),
       todo(5, null, null, { dueDate: null }),
       todo(6, null, null, { dueDate: '2026-10-30' }),
@@ -177,3 +177,4 @@ describe('formatDayHeading', () => {
     expect(formatDayHeading('2026-01-04')).toBe('2026年1月4日(日)')
   })
 })
+

@@ -29,7 +29,8 @@ import { buildWorkspacePathEditPatch } from './lib/workspacePathPatch.js'
 import { currentPomodoro, onPomodoroChange, startPomodoro } from './pomodoro.js'
 import { isSettingsDialogOpen } from './settingsDialog.js'
 import { getState, subscribe } from './state.js'
-import { modelOptions, priorityOptions } from './todoFormOptions.js'
+import { priorityLevel } from './lib/priority.js'
+import { modelOptions, priorityLevelOptions } from './todoFormOptions.js'
 import { $, escapeHtml, toast, toastError, todayIso, twoStepConfirm, withButtonBusy } from './utils.js'
 
 let detailTodoId = null
@@ -58,7 +59,8 @@ let editDraft = null
 const EDIT_FIELDS = {
   'detail-edit-title': 'title',
   'detail-edit-desc': 'description',
-  'detail-edit-priority': 'priority',
+  'detail-edit-urgency': 'urgency',
+  'detail-edit-importance': 'importance',
   'detail-edit-due': 'dueDate',
   'detail-edit-sched-date': 'schedDate',
   'detail-edit-sched-start': 'schedStart',
@@ -101,7 +103,8 @@ function startEditing(todo) {
   editDraft = {
     title: todo.title,
     description: todo.description ?? '',
-    priority: todo.priority ?? 'none',
+    urgency: String(priorityLevel(todo.urgency)),
+    importance: String(priorityLevel(todo.importance)),
     dueDate: todo.dueDate ?? '',
     workspacePath: todo.workspacePath ?? '',
     model: resolveModelSelectValue(todo.model, getState().models),
@@ -124,8 +127,12 @@ function editFormBlock() {
       <textarea id="detail-edit-desc" rows="6">${escapeHtml(d.description)}</textarea>
     </div>
     <div class="form-field">
-      <label for="detail-edit-priority">優先度</label>
-      <select id="detail-edit-priority">${priorityOptions(d.priority)}</select>
+      <label for="detail-edit-urgency">緊急度</label>
+      <select id="detail-edit-urgency">${priorityLevelOptions(d.urgency)}</select>
+    </div>
+    <div class="form-field">
+      <label for="detail-edit-importance">重要度</label>
+      <select id="detail-edit-importance">${priorityLevelOptions(d.importance)}</select>
     </div>
     <div class="form-field">
       <label for="detail-edit-due">期限(任意)</label>
@@ -181,7 +188,8 @@ async function saveEdit() {
     await api.updateTodo(todoId, {
       title,
       description: draft.description.trim(),
-      priority: draft.priority,
+      urgency: Number(draft.urgency),
+      importance: Number(draft.importance),
       dueDate: draft.dueDate || null,
       ...schedule,
       ...buildWorkspacePathEditPatch(draft.workspacePath),

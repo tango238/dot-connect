@@ -25,7 +25,7 @@ import { buildModelCreatePatch } from './lib/modelPatch.js'
 import { buildWorkspacePathCreatePatch } from './lib/workspacePathPatch.js'
 import { isSettingsDialogOpen } from './settingsDialog.js'
 import { activeMilestones, getState } from './state.js'
-import { modelOptions, priorityOptions } from './todoFormOptions.js'
+import { modelOptions, priorityLevelOptions } from './todoFormOptions.js'
 import { $, $all, escapeHtml, toast, toastError, toastWarning, withButtonBusy } from './utils.js'
 
 const STATE_LABEL = { open: 'Open', closed: 'Closed' }
@@ -117,8 +117,10 @@ function renderOptions() {
   const model = $('#ii-model')
   const keepModel = model.value ?? ''
   model.innerHTML = modelOptions(keepModel)
-  const prio = $('#ii-priority')
-  if (!prio.options.length) prio.innerHTML = priorityOptions('none')
+  for (const id of ['#ii-urgency', '#ii-importance']) {
+    const select = $(id)
+    if (!select.options.length) select.innerHTML = priorityLevelOptions(1)
+  }
 }
 
 function renderImportButton() {
@@ -168,7 +170,8 @@ async function importSelected() {
       repo,
       numbers: [...selected],
       milestoneId: msRaw ? Number(msRaw) : null,
-      priority: $('#ii-priority').value,
+      urgency: Number($('#ii-urgency').value),
+      importance: Number($('#ii-importance').value),
       ...buildWorkspacePathCreatePatch($('#ii-ws').value),
       ...buildModelCreatePatch($('#ii-model').value),
     })

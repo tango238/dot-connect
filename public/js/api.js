@@ -137,6 +137,8 @@ export const api = {
     request('GET', `/api/reports/weekly/goal?weekStart=${encodeURIComponent(weekStart)}`),
   saveReportGoal: (weekStart, body) => request('POST', '/api/reports/weekly/goal', { weekStart, body }),
   tidyReportGoal: (body) => request('POST', '/api/reports/weekly/goal/tidy', { body }),
+  // その週に期限のあるマイルストーン・TODO と優先度の高いものから、目標の
+  // 下書き(Markdown)を作る。`{ body }`。保存はしない。
   // Live numbers for the week (no claude call, safe to re-fetch freely).
   getReportStats: (weekStart) =>
     request('GET', `/api/reports/weekly/stats${weekStart ? `?weekStart=${encodeURIComponent(weekStart)}` : ''}`),

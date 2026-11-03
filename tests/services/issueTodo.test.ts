@@ -18,7 +18,8 @@ describe('buildIssueTodoInput', () => {
       title: 'Login fails on Safari',
       description: 'https://github.com/acme/my-app/issues/12\n\nSteps to reproduce…',
       milestoneId: null,
-      priority: 'none',
+      urgency: 1,
+      importance: 1,
       workspacePath: null,
       model: null,
     })
@@ -33,8 +34,8 @@ describe('buildIssueTodoInput', () => {
   })
 
   test('applies the shared defaults to every TODO', () => {
-    const input = buildIssueTodoInput(issue, { milestoneId: 3, priority: 'high', workspacePath: '/w', model: 'opus' })
-    expect(input).toMatchObject({ milestoneId: 3, priority: 'high', workspacePath: '/w', model: 'opus' })
+    const input = buildIssueTodoInput(issue, { milestoneId: 3, urgency: 5, importance: 4, workspacePath: '/w', model: 'opus' })
+    expect(input).toMatchObject({ milestoneId: 3, urgency: 5, importance: 4, workspacePath: '/w', model: 'opus' })
   })
 
   // The TODO is inserted directly, not through createTodoSchema, so the same

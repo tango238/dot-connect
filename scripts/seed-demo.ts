@@ -52,7 +52,8 @@ interface DemoTodo {
   readonly title: string
   readonly description?: string
   readonly milestone?: MilestoneKey
-  readonly priority?: 'none' | 'low' | 'high'
+  readonly urgency?: number
+  readonly importance?: number
   readonly due?: number
   // 今日のスケジュールに置く時間帯('HH:MM' の開始・終了)。スケジュール画面の
   // スクリーンショット用に、今日の日付で登録する。
@@ -64,18 +65,18 @@ interface DemoTodo {
 }
 
 const TODOS: readonly DemoTodo[] = [
-  { title: '検索結果ページのレイアウトを新デザインに合わせる', description: 'カード型レイアウトに変更し、モバイル幅での折り返しを確認する。', milestone: 'search', priority: 'high', due: 2, schedule: ['10:00', '12:00'], workspace: 'my-app', model: 'opus', comments: ['デザインカンプを確認。カードの余白は 16px で統一する。', 'PC幅は実装済み。残りはモバイル幅の確認。'] },
-  { title: '価格帯・在庫ありの絞り込み条件を追加する', description: 'クエリパラメータ price_min / price_max / in_stock を検索APIに渡す。', milestone: 'search', priority: 'high', due: 5, schedule: ['13:00', '15:00'], workspace: 'my-app', model: 'sonnet' },
-  { title: '検索キーワードのサジェストをデバウンスする', milestone: 'search', priority: 'low', due: 9, workspace: 'my-app', model: 'haiku' },
+  { title: '検索結果ページのレイアウトを新デザインに合わせる', description: 'カード型レイアウトに変更し、モバイル幅での折り返しを確認する。', milestone: 'search', urgency: 5, importance: 4, due: 2, schedule: ['10:00', '12:00'], workspace: 'my-app', model: 'opus', comments: ['デザインカンプを確認。カードの余白は 16px で統一する。', 'PC幅は実装済み。残りはモバイル幅の確認。'] },
+  { title: '価格帯・在庫ありの絞り込み条件を追加する', description: 'クエリパラメータ price_min / price_max / in_stock を検索APIに渡す。', milestone: 'search', urgency: 4, importance: 5, due: 5, schedule: ['13:00', '15:00'], workspace: 'my-app', model: 'sonnet' },
+  { title: '検索キーワードのサジェストをデバウンスする', milestone: 'search', urgency: 3, importance: 2, due: 9, workspace: 'my-app', model: 'haiku' },
   { title: '検索APIのレスポンスにページネーション情報を含める', milestone: 'search', due: 0, schedule: ['09:00', '09:30'], workspace: 'my-api', model: 'sonnet', comments: ['total / page / limit を meta に入れる方針で合意。'] },
   { title: '検索インデックスの再構築バッチを作る', milestone: 'search', workspace: 'my-api', done: true },
-  { title: '注文APIのタイムアウト時に再試行する', description: '冪等キーを付けて最大3回まで再試行。失敗時はユーザーに再操作を促す。', milestone: 'checkout', priority: 'high', due: 7, schedule: ['14:00', '16:00'], workspace: 'my-api', model: 'opus' },
-  { title: '決済失敗時のエラーメッセージを見直す', milestone: 'checkout', priority: 'low', due: 14, workspace: 'my-app' },
+  { title: '注文APIのタイムアウト時に再試行する', description: '冪等キーを付けて最大3回まで再試行。失敗時はユーザーに再操作を促す。', milestone: 'checkout', urgency: 5, importance: 5, due: 7, schedule: ['14:00', '16:00'], workspace: 'my-api', model: 'opus' },
+  { title: '決済失敗時のエラーメッセージを見直す', milestone: 'checkout', urgency: 2, importance: 3, due: 14, workspace: 'my-app' },
   { title: '注文確認メールのテンプレートを更新する', milestone: 'checkout', due: 18, workspace: 'my-api', model: 'codex' },
-  { title: 'テストをシャード分割して並列実行する', milestone: 'ci', priority: 'high', due: 0, schedule: ['16:30', '17:30'], workspace: 'my-infra', model: 'sonnet', comments: ['4シャードで 12分 → 4分に短縮できた。'] },
+  { title: 'テストをシャード分割して並列実行する', milestone: 'ci', urgency: 5, importance: 3, due: 0, schedule: ['16:30', '17:30'], workspace: 'my-infra', model: 'sonnet', comments: ['4シャードで 12分 → 4分に短縮できた。'] },
   { title: '依存パッケージのキャッシュキーを見直す', milestone: 'ci', workspace: 'my-infra', done: true },
   { title: 'flaky なE2Eテストを隔離する', milestone: 'ci', workspace: 'my-infra', done: true },
-  { title: 'READMEのセットアップ手順を更新する', priority: 'low', workspace: 'my-app' },
+  { title: 'READMEのセットアップ手順を更新する', urgency: 2, importance: 2, workspace: 'my-app' },
 ]
 
 async function seedLabels(): Promise<Map<LabelKey, number>> {
@@ -108,7 +109,8 @@ async function seedTodo(todo: DemoTodo, milestoneIds: Map<MilestoneKey, number>)
     title: todo.title,
     description: todo.description,
     milestoneId: todo.milestone === undefined ? null : milestoneIds.get(todo.milestone),
-    priority: todo.priority,
+    urgency: todo.urgency,
+    importance: todo.importance,
     dueDate: todo.due === undefined ? null : isoDate(todo.due),
     scheduledStart: todo.schedule === undefined ? null : `${isoDate(0)}T${todo.schedule[0]}`,
     scheduledEnd: todo.schedule === undefined ? null : `${isoDate(0)}T${todo.schedule[1]}`,

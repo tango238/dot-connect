@@ -4,6 +4,9 @@ import { runTool } from './toolResult'
 
 const dateString = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'YYYY-MM-DD形式で指定してください')
 const colorString = z.string().regex(/^#[0-9a-fA-F]{6}$/, '#RRGGBB形式で指定してください').optional()
+const priorityLevel = z.number().int().min(1).max(5)
+const URGENCY_DESCRIPTION = '緊急度 1〜5(5 が最も急ぐ。省略時 1)。重要度との合計が高い順に計画ページへ並ぶ'
+const IMPORTANCE_DESCRIPTION = '重要度 1〜5(5 が最も重要。省略時 1)'
 
 export const createMilestoneShape = {
   title: z.string().min(1),
@@ -12,6 +15,8 @@ export const createMilestoneShape = {
   startDate: dateString.describe('開始日 (YYYY-MM-DD)'),
   targetDate: dateString.describe('終了予定日 (YYYY-MM-DD、startDate以降)'),
   labelId: z.number().int().positive().nullable().optional().describe('紐づけるラベルID'),
+  urgency: priorityLevel.optional().describe(URGENCY_DESCRIPTION),
+  importance: priorityLevel.optional().describe(IMPORTANCE_DESCRIPTION),
 }
 
 export const updateMilestoneShape = {
@@ -22,6 +27,8 @@ export const updateMilestoneShape = {
   startDate: dateString.optional(),
   targetDate: dateString.optional(),
   labelId: z.number().int().positive().nullable().optional().describe('null で紐付け解除'),
+  urgency: priorityLevel.optional().describe(URGENCY_DESCRIPTION),
+  importance: priorityLevel.optional().describe(IMPORTANCE_DESCRIPTION),
 }
 
 export const idOnlyShape = { id: z.number().int().positive() }
@@ -39,6 +46,8 @@ export function createMilestone(
     startDate: string
     targetDate: string
     labelId?: number | null
+    urgency?: number
+    importance?: number
   }
 ) {
   return runTool(() => client.request('POST', '/api/milestones', args))
@@ -54,6 +63,8 @@ export function updateMilestone(
     startDate?: string
     targetDate?: string
     labelId?: number | null
+    urgency?: number
+    importance?: number
   }
 ) {
   const { id, ...body } = args

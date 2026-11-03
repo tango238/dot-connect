@@ -242,9 +242,14 @@ nav { display: flex; flex-direction: column; gap: 2px; }
 .due-badge.due-normal { background: none; color: var(--text-faint); border: 1px dashed var(--border); }
 
 /* ---------- TODO priority badge ---------- */
-.prio-badge { font-size: 10.5px; font-weight: 700; font-family: var(--mono); padding: 1px 7px; border-radius: 8px; letter-spacing: .02em; }
-.prio-badge.prio-high { background: rgba(248,81,73,.16); color: var(--blocked); border: 1px solid rgba(248,81,73,.4); }
-.prio-badge.prio-low { background: none; color: var(--text-faint); border: 1px dashed var(--border); }
+/* 緊急度・重要度(各 1〜5)のバッジ: "緊5 重3"。色は高い方のレベルで決める。
+   両方 1(既定)のときは出さない(lib/priority.js)。 */
+.prio-badge { font-size: 10.5px; font-weight: 700; font-family: var(--mono); padding: 1px 7px; border-radius: 8px; letter-spacing: .02em; white-space: nowrap; }
+.prio-badge.prio-5 { background: rgba(248,81,73,.16); color: var(--blocked); border: 1px solid rgba(248,81,73,.4); }
+.prio-badge.prio-4 { background: rgba(240,163,94,.16); color: var(--ms-c); border: 1px solid rgba(240,163,94,.4); }
+.prio-badge.prio-3 { background: rgba(227,179,65,.14); color: var(--working); border: 1px solid rgba(227,179,65,.4); }
+.prio-badge.prio-2 { background: none; color: var(--text-dim); border: 1px dashed var(--border); }
+.prio-badge.prio-1 { background: none; color: var(--text-faint); border: 1px dashed var(--border); }
 .model-badge { font-size: 10.5px; font-family: var(--mono); color: var(--text-faint); border: 1px dashed var(--border); padding: 1px 7px; border-radius: 8px; }
 
 main { flex: 1; overflow-y: auto; }
@@ -1139,8 +1144,12 @@ h1 { font-size: 20px; font-weight: 700; }
         <select id="ii-milestone"><option value="">未紐付け</option></select>
       </div>
       <div class="form-field">
-        <label for="ii-priority">優先度</label>
-        <select id="ii-priority"></select>
+        <label for="ii-urgency">緊急度</label>
+        <select id="ii-urgency"></select>
+      </div>
+      <div class="form-field">
+        <label for="ii-importance">重要度</label>
+        <select id="ii-importance"></select>
       </div>
       <div class="form-field grow">
         <label for="ii-ws">作業ディレクトリ(任意)</label>
