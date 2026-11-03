@@ -6,7 +6,7 @@ import { createLiveRefresh } from './lib/liveRefresh.js'
 import { initIssueImportDialog } from './issueImportDialog.js'
 import { initLabelManager } from './labelManager.js'
 import { isSidebarCollapsed, persistSidebarCollapsed } from './lib/sidebarState.js'
-import { wipMeter } from './lib/wipLimit.js'
+import { wipMeter, wipTodos } from './lib/wipLimit.js'
 import { hasOpenMilestoneForm, initMilestones, renderMilestones, renderSideMilestones } from './milestones.js'
 import { initPromptDialog } from './promptDialog.js'
 import { ensureReportLoaded, initReport, regenerateLatestReport, renderReport, scheduleReportStatsRefresh } from './report.js'
@@ -19,7 +19,8 @@ import { getState, hasLinkedSession, managedSessionCount, subscribe } from './st
 import { initTodoDetailDialog, openTodoDetail } from './todoDetailDialog.js'
 import { hasOpenTodoForm, initTodos, renderTodos, renderWorkspaceDatalist } from './todos.js'
 import { initWorkspaceManager } from './workspaceManager.js'
-import { $, $all, toastError } from './utils.js'
+import { SESSION_LABEL } from './lib/todoDetail.js'
+import { $, $all, escapeHtml, toastError } from './utils.js'
 
 const POLL_MS = 10_000
 const PR_REFRESH_MS = 5 * 60_000
@@ -66,10 +67,23 @@ function renderSidebar() {
 function renderWipMeter(count) {
   const { settings } = getState()
   const meters = $all('.wip')
+  const lists = $all('.wip-todos')
   if (!settings?.wipLimitEnabled) {
     meters.forEach((el) => { el.hidden = true })
     return
   }
+  // 枠を使っている TODO の一覧。数字だけでは「どれを完了にすれば空くか」が
+  // 分からないので、名前を並べてクリックで詳細を開けるようにする。
+  const items = wipTodos(todos)
+    .map(
+      (t) =>
+        `<button type="button" class="wip-todo" data-action="open-todo-detail" data-id="${t.id}" title="#${t.id} ${escapeHtml(t.title)}(${escapeHtml(SESSION_LABEL[t.sessionState] ?? t.sessionState)})"><span class="sess ${escapeHtml(t.sessionState)}"><span class="s-dot"></span></span><span class="wip-todo-id">#${t.id}</span><span class="wip-todo-title">${escapeHtml(t.title)}</span></button>`
+    )
+    .join('')
+  lists.forEach((el) => {
+    el.hidden = items === ''
+    el.innerHTML = items
+  })
   const meter = wipMeter(count, settings.wipLimit)
   const title = `WIP ${meter.label}${meter.full ? '(上限に達しています)' : ''}`
   meters.forEach((el) => {
@@ -170,6 +184,12 @@ async function bootstrap() {
   initWorkspaceManager()
   initIssueImportDialog()
   initPomodoro({ onOpenTodo: openTodoDetail })
+  $all('.wip-todos').forEach((el) =>
+    el.addEventListener('click', (ev) => {
+      const btn = ev.target.closest('[data-action="open-todo-detail"]')
+      if (btn) openTodoDetail(Number(btn.dataset.id))
+    })
+  )
 
   subscribe(() => {
     renderSidebar()

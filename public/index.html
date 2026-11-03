@@ -219,12 +219,24 @@ nav { display: flex; flex-direction: column; gap: 2px; }
 /* The same meter on its own row under the TODO page head, shown only in
    the narrow layout where the sidebar (and its meter) is gone — see the
    max-width rule. */
+.wip-todos { display: flex; flex-direction: column; gap: 1px; margin: -4px 2px 8px; padding: 0 2px; }
+.wip-todos[hidden] { display: none; }
+.wip-todo {
+  display: flex; align-items: center; gap: 6px; width: 100%; padding: 3px 8px; border: 0; border-radius: 6px;
+  background: none; color: var(--text-dim); font: inherit; font-size: 12px; text-align: left; cursor: pointer; min-width: 0;
+}
+.wip-todo:hover, .wip-todo:focus-visible { background: var(--bg-hover); color: var(--text); outline: none; }
+.wip-todo .sess { padding: 0; border: 0; background: none; flex-shrink: 0; }
+.wip-todo .wip-todo-id { font-family: var(--mono); font-size: 10.5px; color: var(--text-faint); flex-shrink: 0; }
+.wip-todo .wip-todo-title { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .wip-inline { display: none; margin: 20px 0 14px; max-width: 360px; }
+.wip-todos-inline { display: none; margin: -8px 0 14px; max-width: 360px; }
 .wip-inline .wip-label::before { content: 'WIP '; font-weight: 400; color: var(--text-dim); }
 /* Scoped to the sidebar: the collapsed state is persisted on <html>, so
    without `.sidebar` these would also restyle the page-head meter above. */
 .sidebar-collapsed .sidebar .wip { padding: 4px 2px; margin: 0 0 6px; width: 100%; justify-content: center; }
 .sidebar-collapsed .sidebar .wip-cells { display: none; }
+.sidebar-collapsed .sidebar .wip-todos { display: none; }
 .sidebar-collapsed .sidebar .wip-label { font-size: 10.5px; }
 /* ---------- pomodoro panel (TODO detail) ---------- */
 .pomo-start-row { display: flex; align-items: center; gap: 8px; padding: 4px; }
@@ -901,8 +913,9 @@ h1 { font-size: 20px; font-weight: 700; }
   .logo { padding: 0 8px 0 0; }
   nav { flex-direction: row; }
   .nav-btn { padding: 6px 10px; white-space: nowrap; }
-  .side-sec, .herdr-status, .pomo, .wip { display: none; }
+  .side-sec, .herdr-status, .pomo, .wip, .wip-todos { display: none; }
   .wip-inline:not([hidden]) { display: flex; }
+  .wip-todos-inline:not([hidden]) { display: flex; }
   .page { padding: 18px 14px 48px; }
   .todo { grid-template-columns: 26px 1fr; }
   .todo-actions { grid-column: 2; justify-content: flex-end; }
@@ -928,6 +941,8 @@ h1 { font-size: 20px; font-weight: 700; }
       <div class="pomo" id="pomodoro" data-status="idle" aria-label="ポモドーロタイマー" role="group"></div>
       <button class="nav-btn" data-page="todos" title="TODO"><span class="n-ico">☑</span><span class="nav-label">TODO</span><span class="nav-count" id="count-todos">–</span></button>
       <div class="wip" id="wip-meter" role="meter" aria-label="WIP" aria-valuemin="0" hidden><span class="wip-cells" id="wip-cells"></span><span class="wip-label" id="wip-label"></span></div>
+      <div class="wip-todos" id="wip-todos" aria-label="WIP中のTODO" hidden></div>
+      <button class="nav-btn" data-page="todos" title="TODO"><span class="n-ico">☑</span><span class="nav-label">TODO</span><span class="nav-count" id="count-todos">–</span></button>
       <button class="nav-btn" data-page="day" title="スケジュール"><span class="n-ico">◷</span><span class="nav-label">スケジュール</span></button>
       <button class="nav-btn" data-page="plan" title="計画"><span class="n-ico">▦</span><span class="nav-label">計画</span></button>
       <button class="nav-btn" data-page="milestones" title="マイルストーン"><span class="n-ico">◆</span><span class="nav-label">マイルストーン</span><span class="nav-count" id="count-ms">–</span></button>
@@ -952,7 +967,7 @@ h1 { font-size: 20px; font-weight: 700; }
         <button class="btn btn-accent" id="new-todo-toggle">＋ 新規TODO</button>
       </div>
       <div class="wip wip-inline" role="meter" aria-label="WIP" aria-valuemin="0" hidden><span class="wip-cells"></span><span class="wip-label"></span></div>
-      <p class="page-sub">TODOを herdr の Claude Code セッションに投入して並列実行。完了は手動で確定します。</p>
+      <div class="wip-todos wip-todos-inline" aria-label="WIP中のTODO" hidden></div>
       <div class="inline-form stacked" id="new-todo-form" hidden></div>
       <div class="filters" role="group" aria-label="フィルタ">
         <button class="chip" data-filter="recent" aria-pressed="true">最近の更新</button>

@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import { wipBlockedReason, wipCount, wipMeter } from '../../public/js/lib/wipLimit.js'
+import { wipBlockedReason, wipCount, wipMeter, wipTodos } from '../../public/js/lib/wipLimit.js'
 
 const running = { sessionState: 'working', status: 'open' }
 const idle = { sessionState: 'idle', status: 'open' }
@@ -38,5 +38,21 @@ describe('wipBlockedReason', () => {
 
   test('有効で上限に達していれば理由を返す', () => {
     expect(wipBlockedReason({ wipLimitEnabled: true, wipLimit: 2 }, [running, idle])).toContain('WIP制限(2件)')
+  })
+})
+
+describe('wipTodos', () => {
+  test('枠を使っている TODO を 実行中→承認待ち→待機→完了・未確認、id 順で返す', () => {
+    const todos = [
+      { id: 5, sessionState: 'idle', status: 'open' },
+      { id: 2, sessionState: 'done', status: 'open' },
+      { id: 9, sessionState: 'working', status: 'open' },
+      { id: 1, sessionState: 'blocked', status: 'open' },
+      { id: 3, sessionState: 'working', status: 'open' },
+      { id: 4, sessionState: 'working', status: 'done' },
+      { id: 6, sessionState: null, status: 'open' },
+    ]
+    expect(wipTodos(todos).map((t) => t.id)).toEqual([3, 9, 1, 5, 2])
+    expect(wipTodos(todos)).toHaveLength(wipCount(todos))
   })
 })

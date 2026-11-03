@@ -12,6 +12,21 @@ export function wipCount(todos) {
   return todos.filter((t) => t.sessionState !== null && t.status !== 'done').length
 }
 
+const SESSION_RANK = { working: 0, blocked: 1, idle: 2, done: 3 }
+
+/**
+ * The todos occupying WIP slots (same filter as wipCount), ordered so the
+ * ones needing attention come first: working → blocked → idle → done, then
+ * by id. Rendered as the list under the meter, each linking to its detail.
+ *
+ * @param {{ id: number, sessionState: string|null, status: 'open'|'done' }[]} todos
+ */
+export function wipTodos(todos) {
+  return todos
+    .filter((t) => t.sessionState !== null && t.status !== 'done')
+    .sort((a, b) => (SESSION_RANK[a.sessionState] ?? 9) - (SESSION_RANK[b.sessionState] ?? 9) || a.id - b.id)
+}
+
 /**
  * The sidebar meter, e.g. "■■■■■■□□□□" + "6/10". One cell per slot; a count
  * above the limit (the limit was lowered while sessions were running) just
