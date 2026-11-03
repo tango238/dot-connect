@@ -9,6 +9,7 @@
 // ないため(todos.js の新規フォームと同じ理由)。
 //
 // 「今日」の線は 1 分おきに引き直す。選んでいる日が今日のときだけ出る。
+//
 // Google カレンダーの予定(設定で iCal 非公開 URL を登録したとき)は、
 // GET /api/calendar/events から選んでいる日の分だけ読み、終日は上段に、
 // 時刻ありはタイムラインに TODO と一緒に並べる。読み取り専用なので、
@@ -245,7 +246,7 @@ function renderTimeline(todos) {
   const blocks = timelineEntries(todos, events, selectedDate)
   $('#day-hours').innerHTML = hourLabels()
   $('#day-canvas').innerHTML = hourCells() + blocks.map(blockHtml).join('') + nowLineHtml()
-  $('#day-timeline-note').textContent = blocks.length
+  $('#day-timeline-note').textContent = blocks.some((b) => b.kind === 'todo')
     ? ''
     : '予定の入ったTODOはまだありません。時間帯をクリックするか、TODOの編集で「予定」を設定すると、ここに並びます。'
 }
@@ -257,6 +258,8 @@ export function renderDay() {
   $('#day-today-badge').hidden = selectedDate !== today
   const picker = $('#day-picker')
   if (picker.value !== selectedDate) picker.value = selectedDate
+  // 初めて開いたとき・日を変えたときだけ読みに行く(描画は 10 秒ポーリング
+  // でも走るので、ここで毎回 fetch はしない)。
   if (calendar.date !== selectedDate && !calendar.loading) void loadCalendar(selectedDate)
   renderDueList(todos)
   renderTimeline(todos)
@@ -406,6 +409,8 @@ export function initDay() {
     }
     if (ev.target.closest('[data-action="cancel-quick"]')) {
       closeQuickForm()
+      return
+    }
     if (ev.target.closest('[data-action="refresh-calendar"]')) {
       void refreshCalendarNow()
       return

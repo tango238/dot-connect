@@ -154,6 +154,8 @@ export interface Todo {
   // Grill 中だけ入る、dot-connect が持つ一時ディレクトリ(<db dir>/grill/
   // todo-<id>)。Grill していなければ null。grillService.ts 参照。
   readonly grillDir: string | null
+  // Grilled で内容を確定した時刻(UTC)。null なら Grill を通していない。
+  readonly grilledAt: string | null
   // Always present (empty when none are linked). Carried on the todo itself
   // rather than fetched separately because the detail dialog holds only a
   // todo id and re-reads everything it shows from the polled todo list —

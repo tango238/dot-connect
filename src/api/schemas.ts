@@ -267,6 +267,14 @@ export const saveGoalSchema = z.object({
 // 「目標を生成」: 週を受けて下書きを返す(weeklyGoalDraftService.ts)。
 export const generateGoalSchema = z.object({ weekStart: dateString })
 
+// 「今週終わらせるタスク」の並び(weekQueueService.ts)。
+export const queueAddSchema = z.object({ weekStart: dateString, todoId: z.number().int().positive() })
+export const queueDispatchSchema = z.object({ weekStart: dateString, dispatch: z.boolean() })
+export const queueReorderSchema = z.object({
+  weekStart: dateString,
+  todoIds: z.array(z.number().int().positive()).max(500),
+})
+
 // 「整理する」は未保存の入力にも効かせたいので、本文を直接受ける。
 export const tidyGoalSchema = z.object({
   body: z.string().trim().min(1, '整理する目標を入力してください').max(GOAL_MAX_LENGTH),
@@ -380,6 +388,9 @@ export const updateSettingsSchema = z
     wipLimitEnabled: z.boolean().optional(),
     // 範囲は wipLimitService.ts の MIN/MAX と同じ
     wipLimit: z.number().int().min(1).max(30).optional(),
+    // 自動投入(autoRunService.ts)。buffer の範囲は同サービスの MIN/MAX と同じ
+    autoRunEnabled: z.boolean().optional(),
+    autoRunBuffer: z.number().int().min(0).max(29).optional(),
   })
   .refine((v) => Object.values(v).some((value) => value !== undefined), {
     message: '変更する項目を指定してください',

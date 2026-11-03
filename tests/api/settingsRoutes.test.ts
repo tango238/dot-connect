@@ -15,6 +15,8 @@ describe('GET /api/settings', () => {
       idleRecapMinutes: 180,
       wipLimitEnabled: false,
       wipLimit: 10,
+      autoRunEnabled: false,
+      autoRunBuffer: 1,
       notesDir: '/tmp/dot-connect-test-notes',
       skill: { path: '/tmp/dot-connect-test-claude/skills/dot-connect/SKILL.md', state: 'not_installed' },
     })
@@ -81,6 +83,8 @@ describe('PATCH /api/settings idleRecapMinutes', () => {
       idleRecapMinutes: 120,
       wipLimitEnabled: false,
       wipLimit: 10,
+      autoRunEnabled: false,
+      autoRunBuffer: 1,
       notesDir: '/tmp/dot-connect-test-notes',
       skill: { path: '/tmp/dot-connect-test-claude/skills/dot-connect/SKILL.md', state: 'not_installed' },
     })

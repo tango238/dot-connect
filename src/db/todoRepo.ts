@@ -38,6 +38,7 @@ interface TodoRow {
   created_at: string
   updated_at: string | null
   grill_dir: string | null
+  grilled_at: string | null
 }
 
 const SELECT_WITH_MILESTONE = `
@@ -48,7 +49,7 @@ const SELECT_WITH_MILESTONE = `
     t.herdr_workspace_id, t.herdr_tab_id, t.herdr_pane_id,
     t.session_state, t.dispatched_at, t.completed_at, t.completed_milestone_id, t.model, t.due_date,
     t.scheduled_start, t.scheduled_end,
-    t.created_at, t.updated_at, t.grill_dir
+    t.created_at, t.updated_at, t.grill_dir, t.grilled_at
   FROM todos t
   LEFT JOIN milestones m ON m.id = t.milestone_id
 `
@@ -100,6 +101,7 @@ function mapRow(
     createdAt: row.created_at,
     updatedAt: row.updated_at,
     grillDir: row.grill_dir,
+    grilledAt: row.grilled_at,
     pullRequests,
     attachments,
     comments,
@@ -391,4 +393,9 @@ export function clearDispatch(db: Database, id: number): void {
 // 作成・削除は grillService.ts の責務で、ここは列を書くだけ。
 export function setGrillDir(db: Database, id: number, dir: string | null): void {
   db.run(`UPDATE todos SET grill_dir = ?, updated_at = datetime('now') WHERE id = ?`, [dir, id])
+}
+
+/** Grilled の反映が済んだ印。自動投入の候補条件に使う。 */
+export function markGrilled(db: Database, id: number): void {
+  db.run(`UPDATE todos SET grilled_at = datetime('now') WHERE id = ?`, [id])
 }

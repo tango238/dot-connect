@@ -349,6 +349,7 @@ async function finishGrillOnce(
   // 壊れていれば BadRequestError。Grill の状態は残すので、セッションで直してもらえる。
   const result = parseGrilledResult(text)
   todoRepo.update(db, todoId, { title: result.title, description: result.description })
+  todoRepo.markGrilled(db, todoId)
   await closeGrillSession(db, herdr, todo)
   cleanupGrill(db, todoId)
 

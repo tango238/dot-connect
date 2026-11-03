@@ -4,13 +4,18 @@ import * as weeklyGoalRepo from '../db/weeklyGoalRepo'
 import { formatLocalDate, mostRecentMonday } from '../services/localDate'
 import { generateWeeklyReport } from '../services/reportService'
 import { computeWeeklyStats } from '../services/reportStatsService'
+import { addToQueue, listQueue, removeFromQueue, reorderQueue, setQueueDispatch } from '../services/weekQueueService'
 import { buildWeeklyGoalDraft } from '../services/weeklyGoalDraftService'
 import type { AppDependencies } from './dependencies'
 import { fail, handle, ok } from './response'
 import {
   generateGoalSchema,
   generateReportSchema,
+  idParamSchema,
   optionalWeekStartQuerySchema,
+  queueAddSchema,
+  queueDispatchSchema,
+  queueReorderSchema,
   saveGoalSchema,
   tidyGoalSchema,
   weekStartQuerySchema,
@@ -60,10 +65,66 @@ export function createReportsRoutes(deps: AppDependencies): Hono {
   // 「目標を生成」: その週に期限のあるマイルストーン・TODO と優先度の高い
   // ものから Markdown の下書きを作って返す。保存はしない(tidy と同じく、
   // 画面側が入力欄に入れてから POST /weekly/goal する)。
+  // 下書きに載せた TODO は「今週終わらせるタスク」の並びにも足す(既にある
+  // ものは動かさない)。期日の無い TODO には週末の期日が付く。
   app.post('/weekly/goal/generate', async (c) => {
     return handle(c, async () => {
       const { weekStart } = parseOrThrow(generateGoalSchema, await c.req.json())
-      return ok(c, { body: buildWeeklyGoalDraft(deps.db, weekStart, formatLocalDate(new Date())).body })
+      const draft = buildWeeklyGoalDraft(deps.db, weekStart, formatLocalDate(new Date()))
+      let queued = 0
+      for (const todoId of draft.todoIds) {
+        const before = listQueue(deps.db, weekStart).todos.length
+        addToQueue(deps.db, weekStart, todoId)
+        if (listQueue(deps.db, weekStart).todos.length > before) queued++
+      }
+      return ok(c, { body: draft.body, queued, queue: listQueue(deps.db, weekStart) })
+    })
+  })
+
+  // 「今週終わらせるタスク」の並び。ブラウザ UI 専用(apiTokenAuth.ts の
+  // 許可リストには入れていない)。
+  app.get('/weekly/queue', (c) => {
+    return handle(c, async () => {
+      const { weekStart } = parseOrThrow(weekStartQuerySchema, c.req.query())
+      return ok(c, listQueue(deps.db, weekStart))
+    })
+  })
+
+  app.post('/weekly/queue', async (c) => {
+    return handle(c, async () => {
+      const { weekStart, todoId } = parseOrThrow(queueAddSchema, await c.req.json())
+      addToQueue(deps.db, weekStart, todoId)
+      return ok(c, listQueue(deps.db, weekStart), 201)
+    })
+  })
+
+  app.put('/weekly/queue/order', async (c) => {
+    return handle(c, async () => {
+      const { weekStart, todoIds } = parseOrThrow(queueReorderSchema, await c.req.json())
+      return ok(c, reorderQueue(deps.db, weekStart, todoIds))
+    })
+  })
+
+  // 行の「herdr」切り替え: 投入する対象か、自分でやるタスクか。
+  app.patch('/weekly/queue/:id', async (c) => {
+    return handle(c, async () => {
+      const { id } = parseOrThrow(idParamSchema, c.req.param())
+      const { weekStart, dispatch } = parseOrThrow(queueDispatchSchema, await c.req.json())
+      if (!setQueueDispatch(deps.db, weekStart, id, dispatch)) {
+        return fail(c, 404, 'そのTODOは今週の一覧にありません')
+      }
+      return ok(c, listQueue(deps.db, weekStart))
+    })
+  })
+
+  app.delete('/weekly/queue/:id', (c) => {
+    return handle(c, async () => {
+      const { id } = parseOrThrow(idParamSchema, c.req.param())
+      const { weekStart } = parseOrThrow(weekStartQuerySchema, c.req.query())
+      if (!removeFromQueue(deps.db, weekStart, id)) {
+        return fail(c, 404, 'そのTODOは今週の一覧にありません')
+      }
+      return ok(c, listQueue(deps.db, weekStart))
     })
   })
 

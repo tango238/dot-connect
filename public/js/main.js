@@ -13,7 +13,9 @@ import { ensureReportLoaded, initReport, regenerateLatestReport, renderReport, s
 import { initDay, renderDay } from './day.js'
 import { initPlan, renderPlan } from './plan.js'
 import { initPomodoro, refreshPomodoroLabel } from './pomodoro.js'
+import { initAutoRun } from './autoRun.js'
 import { applyUploadDir, initSettingsDialog, openSettingsDialog } from './settingsDialog.js'
+import { initWeekQueue } from './weekQueue.js'
 import { initSnippetManager } from './snippetManager.js'
 import { getState, hasLinkedSession, managedSessionCount, subscribe } from './state.js'
 import { initTodoDetailDialog, openTodoDetail } from './todoDetailDialog.js'
@@ -65,11 +67,12 @@ function renderSidebar() {
 // shows only when the narrow layout hides the sidebar — so render into every
 // `.wip` and let the stylesheet pick which is visible.
 function renderWipMeter(count) {
-  const { settings } = getState()
+  const { settings, todos } = getState()
   const meters = $all('.wip')
   const lists = $all('.wip-todos')
   if (!settings?.wipLimitEnabled) {
     meters.forEach((el) => { el.hidden = true })
+    lists.forEach((el) => { el.hidden = true })
     return
   }
   // 枠を使っている TODO の一覧。数字だけでは「どれを完了にすれば空くか」が
@@ -176,6 +179,8 @@ async function bootstrap() {
   initDay()
   initPlan()
   initReport()
+  initWeekQueue()
+  initAutoRun()
   initPromptDialog()
   initTodoDetailDialog()
   initSettingsDialog()

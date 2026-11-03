@@ -71,6 +71,9 @@ export function detailRows(todo, timeZone, today) {
   // that predate any of these fields), which lines up with this function's
   // own rule of omitting a row rather than rendering it blank.
   if (priorityBadge(todo)) rows.push({ label: '優先度', value: formatPriority(todo) })
+  // Grilled 済みかどうかは自動投入の条件なので、詳細でも分かるようにする。
+  if (todo.grillDir) rows.push({ label: 'Grill', value: 'Grill 中(Grilled で確定)' })
+  else if (todo.grilledAt) rows.push({ label: 'Grill', value: `Grilled 済み ${formatDateTime(todo.grilledAt, timeZone) ?? ''}`.trim() })
   if (todo.sessionState) rows.push({ label: 'セッション', value: sessionValue(todo) })
   if (todo.workspacePath) {
     rows.push({ label: '作業ディレクトリ', value: todo.workspacePath, mono: true })

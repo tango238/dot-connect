@@ -172,6 +172,19 @@ const MIGRATIONS: readonly string[] = [
     ics TEXT NOT NULL,
     fetched_at TEXT NOT NULL
   )`,
+  // 「今週終わらせるタスク」の並び(weekQueueRepo.ts)。週は weekly_goals と同じ
+  // 月曜の日付で、FK は張らない(目標より先に並びだけ作ることがある)。
+  `CREATE TABLE IF NOT EXISTS week_queue (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    week_start TEXT NOT NULL,
+    todo_id INTEGER NOT NULL REFERENCES todos(id) ON DELETE CASCADE,
+    position INTEGER NOT NULL,
+    -- 1 なら herdr に投入する(自動投入の候補・手動の「投入」の対象)。0 は
+    -- 自分でやるタスクで、一覧には並ぶが投入しない。
+    dispatch INTEGER NOT NULL DEFAULT 1,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    UNIQUE(week_start, todo_id)
+  )`,
   `CREATE TABLE IF NOT EXISTS weekly_goals (
     week_start TEXT PRIMARY KEY,
     body TEXT NOT NULL DEFAULT '',
@@ -215,6 +228,10 @@ const ADDITIVE_COLUMNS: readonly { table: string; column: string; definition: st
   // 値が入り、Grilled で確定・取り消し・完了・削除のいずれかで NULL に戻る
   // (grillService.ts 参照)。
   { table: 'todos', column: 'grill_dir', definition: 'TEXT' },
+  // Grilled(Grill の結果を TODO に反映)した時刻。自動投入は、これが入って
+  // いる(=内容が詰まっている)TODO だけを候補にする。
+  { table: 'todos', column: 'grilled_at', definition: 'TEXT' },
+  { table: 'week_queue', column: 'dispatch', definition: 'INTEGER NOT NULL DEFAULT 1' },
   // 1日スケジュールに置く予定の開始・終了("YYYY-MM-DDTHH:MM" のローカル
   // 時刻、タイムゾーン無し)。両方 NULL が「予定なし」。片方だけ入ることは
   // ない(schemas.ts が両方同時の指定を要求する)。期日 due_date とは独立。

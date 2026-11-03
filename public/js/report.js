@@ -6,6 +6,7 @@
 // offer a manual regenerate.
 
 import { api, ApiError } from './api.js'
+import { refreshTodos } from './data.js'
 import { addDaysToDateStr, mondayOf } from './lib/week.js'
 import { canGoNext } from './lib/reportNav.js'
 import {
@@ -23,9 +24,10 @@ import { formatDateTime } from './lib/todoDetail.js'
 import { getState, setState } from './state.js'
 import { openTodoDetail } from './todoDetailDialog.js'
 import { $, escapeHtml, formatMonthDay, toast, toastError, todayIso, twoStepConfirm } from './utils.js'
+import { loadQueue, renderWeekQueue } from './weekQueue.js'
 
 
-function currentWeekStart() {
+export function currentWeekStart() {
   // todayIso() reads local wall-clock date; new Date().toISOString() would
   // read UTC and land a day early during JST 00:00-09:00 (F28).
   return mondayOf(todayIso())
@@ -247,6 +249,7 @@ export function renderReport() {
   if (reportStatus === 'idle' || (reportStatus === 'loading' && !reportStats)) {
     container.innerHTML = `<p class="page-sub">読み込み中…</p>`
     $('#report-goal').hidden = true
+    $('#report-week-queue').hidden = true
     analysis.innerHTML = ''
     return
   }
@@ -254,6 +257,8 @@ export function renderReport() {
     reportHeader(reportWeekStart, reportLatestWeekStart) +
     statsSection(reportStats, reportStatsStatus, todayIso())
   $('#report-goal').hidden = false
+  $('#report-week-queue').hidden = false
+  renderWeekQueue()
   analysis.innerHTML = analysisSection(report, reportStatus, reportWeekStart)
 }
 
@@ -333,6 +338,7 @@ function renderGoalChrome() {
   renderGoalView()
   els.save.disabled = !ready || !goalDirty()
   els.tidy.disabled = !ready || els.text.value.trim().length === 0
+  els.generate.disabled = !ready
   els.undo.hidden = goal.undo === null || goal.busy
   els.week.textContent = goal.weekStart ? `${goal.weekStart} 週` : ''
   if (goal.loaded && !goal.busy) {
@@ -473,7 +479,7 @@ async function undoTidy() {
   goalEls().text.value = goal.undo
   goal.undo = null
   await saveGoal({ quiet: true })
-  toast('整理前の目標に戻しました')
+  toast('元の目標に戻しました')
 }
 
 function initGoalForm() {
@@ -546,7 +552,7 @@ async function loadWeek(weekStart) {
     reportStatsStatus: 'loading',
     reportLatestWeekStart: currentWeekStart(),
   })
-  await Promise.all([loadStats(weekStart), loadStoredReport(weekStart), loadGoal(weekStart)])
+  await Promise.all([loadStats(weekStart), loadStoredReport(weekStart), loadGoal(weekStart), loadQueue(weekStart)])
 }
 
 /** Re-fetches the displayed week's statistics without any loading state —

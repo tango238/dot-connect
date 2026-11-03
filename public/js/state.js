@@ -22,6 +22,10 @@ let state = {
   // buttons read wipLimitEnabled/wipLimit from here; null hides the meter
   // and leaves dispatch to the server's own check.
   settings: null,
+  // 今日の属する週の「今週終わらせるタスク」(weekQueue.js が読んで置く)。
+  // null は未取得。TODO 一覧の「目標に登録」の既登録判定と、自動投入
+  // (autoRun.js)の候補選びが読む。
+  weekQueue: null,
   // 既定は「最近の更新」——一覧を開いて最初に見たいのは、いま動いている
   // 仕事だから。全件は「すべて」チップに退避している。
   filter: 'recent',

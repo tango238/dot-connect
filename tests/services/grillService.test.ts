@@ -221,6 +221,7 @@ describe('finishGrill', () => {
     expect(finished.title).toBe('Fix the login timeout')
     expect(finished.description).toBe('## やること\n- extend it')
     expect(finished.grillDir).toBeNull()
+    expect(finished.grilledAt).toMatch(/^\d{4}-\d{2}-\d{2} /)
     expect(finished.sessionState).toBeNull()
     expect(finished.herdrWorkspaceId).toBeNull()
     expect(finished.herdrPaneId).toBeNull()

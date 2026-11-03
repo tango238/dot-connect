@@ -132,8 +132,6 @@ export function timelineEntries(todos, events, date) {
     todo,
     startMin: minutesOfTime(todo.scheduledStart.slice(11, 16)),
     endMin: minutesOfTime(todo.scheduledEnd.slice(11, 16)),
-    col: 0,
-    cols: 1,
   }))
   for (const event of events ?? []) {
     if (event.allDay || event.date !== date) continue

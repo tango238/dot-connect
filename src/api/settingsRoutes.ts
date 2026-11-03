@@ -1,6 +1,7 @@
 import type { Context } from 'hono'
 import { Hono } from 'hono'
 import * as appSettingsRepo from '../db/appSettingsRepo'
+import { AUTO_RUN_BUFFER_KEY, AUTO_RUN_ENABLED_KEY, resolveAutoRun } from '../services/autoRunService'
 import { IDLE_RECAP_MINUTES_KEY, resolveIdleRecapMinutes } from '../services/idleRecapService'
 import { UPLOAD_DIR_KEY, resolveUploadDir, validateUploadDir } from '../services/uploadDirService'
 import { installSkill, skillStatus, type SkillStatus } from '../services/skillInstallService'
@@ -17,6 +18,8 @@ interface SettingsResponse {
   idleRecapMinutes: number
   wipLimitEnabled: boolean
   wipLimit: number
+  autoRunEnabled: boolean
+  autoRunBuffer: number
   notesDir: string
   skill: SkillStatus
 }
@@ -24,12 +27,15 @@ interface SettingsResponse {
 function settingsResponse(deps: AppDependencies): SettingsResponse {
   const { path, isDefault } = resolveUploadDir(deps.db, deps.dbPath)
   const wip = resolveWipLimit(deps.db)
+  const autoRun = resolveAutoRun(deps.db)
   return {
     uploadDir: path,
     uploadDirIsDefault: isDefault,
     idleRecapMinutes: resolveIdleRecapMinutes(deps.db),
     wipLimitEnabled: wip.enabled,
     wipLimit: wip.limit,
+    autoRunEnabled: autoRun.enabled,
+    autoRunBuffer: autoRun.buffer,
     notesDir: deps.notesDir,
     skill: skillStatus(deps.claudeSkillsDir),
   }
@@ -42,7 +48,7 @@ function getSettingsHandler(deps: AppDependencies) {
 function updateSettingsHandler(deps: AppDependencies) {
   return async (c: Context) => {
     return handle(c, async () => {
-      const { uploadDir, idleRecapMinutes, wipLimitEnabled, wipLimit } = parseOrThrow(updateSettingsSchema, await c.req.json())
+      const { uploadDir, idleRecapMinutes, wipLimitEnabled, wipLimit, autoRunEnabled, autoRunBuffer } = parseOrThrow(updateSettingsSchema, await c.req.json())
       // 両方来たら先に検証を済ませてから書く —— 片方だけ保存されて 400 が返る
       // 中途半端な状態を避ける。
       if (uploadDir !== undefined) {
@@ -62,6 +68,12 @@ function updateSettingsHandler(deps: AppDependencies) {
       }
       if (wipLimit !== undefined) {
         appSettingsRepo.set(deps.db, WIP_LIMIT_KEY, String(wipLimit))
+      }
+      if (autoRunEnabled !== undefined) {
+        appSettingsRepo.set(deps.db, AUTO_RUN_ENABLED_KEY, autoRunEnabled ? '1' : '0')
+      }
+      if (autoRunBuffer !== undefined) {
+        appSettingsRepo.set(deps.db, AUTO_RUN_BUFFER_KEY, String(autoRunBuffer))
       }
       return ok(c, settingsResponse(deps))
     })

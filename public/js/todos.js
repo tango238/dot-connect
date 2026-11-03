@@ -2,9 +2,8 @@
 
 import { api } from './api.js'
 import { refreshBoth, refreshTodos, refreshWorkspaces, toggleTodoComplete } from './data.js'
-import { dispatchDisabledReason, sessionFocusDisabledReason } from './lib/capabilities.js'
-import { wipBlockedReason } from './lib/wipLimit.js'
-import { grillButton } from './lib/grill.js'
+import { sessionFocusDisabledReason } from './lib/capabilities.js'
+import { grillButton, isGrilled, weekGoalButton } from './lib/grill.js'
 import { newTodoMenuItems } from './lib/newTodoMenu.js'
 import { dueBadge } from './lib/dueBadge.js'
 import { shouldRestoreCapturedForm } from './lib/formCapture.js'
@@ -21,13 +20,13 @@ import { sortActiveTodos } from './lib/todoOrder.js'
 import { buildWorkspaceDatalistOptions } from './lib/workspaceOptions.js'
 import { buildWorkspacePathCreatePatch } from './lib/workspacePathPatch.js'
 import { openActionMenu, openLinkMenu } from './linkMenu.js'
-import { openPromptDialog } from './promptDialog.js'
 import { openWorkspaceManager } from './workspaceManager.js'
 import { openIssueImportDialog } from './issueImportDialog.js'
 import { activeMilestones, getState, setState } from './state.js'
 import { isEditingTodoDetail, openTodoDetail } from './todoDetailDialog.js'
 import { modelOptions, priorityLevelOptions } from './todoFormOptions.js'
 import { $, $all, escapeHtml, toast, toastError, toastWarning, todayIso, twoStepConfirm, withButtonBusy } from './utils.js'
+import { addTodoToCurrentWeek } from './weekQueue.js'
 
 // Synthetic id for the new-todo form in captureOpenFormValues/
 // restoreOpenFormValues below — it has no todo id of its own yet.
@@ -149,23 +148,19 @@ function todoActions(todo) {
         : ''
     return `${openBtn}${completeBtn}${del}`
   }
-  // workspacePath is now chosen in the dispatch dialog itself (prefilled
-  // from the todo, editable there), so the dispatch button is always
-  // available regardless of whether one is saved yet — the one thing that
-  // does gate it is an environment that can't dispatch at all, where it's
-  // greyed out here (the entry point) as well as inside the dialog.
-  // A full WIP limit greys it out the same way: the slot frees up only by
-  // completing or deleting a running todo (the server refuses either way).
-  const { capabilities, settings, todos } = getState()
-  const dispatchReason = dispatchDisabledReason(capabilities) ?? wipBlockedReason(settings, todos)
-  const dispatchBtn = dispatchReason
-    ? `<button class="btn btn-accent" data-action="dispatch" data-id="${todo.id}" disabled title="${escapeHtml(dispatchReason)}">▶ herdrに投入</button>`
-    : `<button class="btn btn-accent" data-action="dispatch" data-id="${todo.id}">▶ herdrに投入</button>`
-  const grillTitle = dispatchReason ?? grill?.title ?? ''
+  // herdr への投入はここからはしない: TODO は Grill me → Grilled で内容を
+  // 詰め、「目標に登録」で今週終わらせるタスク(目標ページ)に入れ、そこから
+  // 投入する(手動の「投入」か自動投入)。
+  const goal = weekGoalButton(todo, (getState().weekQueue?.todos ?? []).map((t) => t.id))
+  const goalBtn = !goal
+    ? ''
+    : goal.registered
+      ? `<span class="todo-week-tag" title="${escapeHtml(goal.title)}">✓ ${goal.label}</span>`
+      : `<button class="btn btn-accent" data-action="${goal.action}" data-id="${todo.id}" title="${escapeHtml(goal.title)}">${goal.label}</button>`
   const grillBtn = grill
-    ? `<button class="btn" data-action="${grill.action}" data-id="${todo.id}"${dispatchReason ? ' disabled' : ''} title="${escapeHtml(grillTitle)}">${grill.label}</button>`
+    ? `<button class="btn" data-action="${grill.action}" data-id="${todo.id}" title="${escapeHtml(grill.title)}">${grill.label}</button>`
     : ''
-  return `${dispatchBtn}${grillBtn}${del}`
+  return `${goalBtn}${grillBtn}${del}`
 }
 
 function todoRow(todo) {
@@ -173,7 +168,7 @@ function todoRow(todo) {
   const descLine = todo.description
     ? `<div class="todo-desc">${escapeHtml(todo.description)}</div>`
     : ''
-  return `<div class="todo ${done ? 'is-done' : ''}" data-todo-id="${todo.id}">
+  return `<div class="todo ${done ? 'is-done' : ''} ${!done && isGrilled(todo) ? 'is-grilled' : ''}" data-todo-id="${todo.id}">
     <button class="todo-check" aria-label="完了切り替え" data-action="toggle-complete" data-id="${todo.id}">✔</button>
     <div class="todo-main">
       <div class="todo-title" role="button" tabindex="0" data-action="open-todo-detail" data-id="${todo.id}" title="クリックで詳細を表示"><span class="todo-id">#${todo.id}</span> ${escapeHtml(todo.title)}</div>
@@ -475,9 +470,15 @@ function handleListClick(ev) {
       restoreText: isCheck ? null : '完了にする',
       hint: isCheck ? 'もう一度クリックで完了します（herdrセッションも閉じます）' : null,
     })
-  } else if (action === 'dispatch') {
-    const todo = getState().todos.find((t) => t.id === id)
-    if (todo) openPromptDialog(todo)
+  } else if (action === 'add-to-week') {
+    withButtonBusy(btn, async () => {
+      try {
+        await addTodoToCurrentWeek(id)
+        toast('目標の「今週終わらせるタスク」に登録しました')
+      } catch (err) {
+        toastError(err.message)
+      }
+    })
   } else if (action === 'grill') {
     withButtonBusy(btn, () => grillTodo(id))
   } else if (action === 'grilled') {
