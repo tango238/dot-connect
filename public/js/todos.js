@@ -24,6 +24,7 @@ import { openWorkspaceManager } from './workspaceManager.js'
 import { openIssueImportDialog } from './issueImportDialog.js'
 import { activeMilestones, getState, setState } from './state.js'
 import { isEditingTodoDetail, openTodoDetail } from './todoDetailDialog.js'
+import { todoFormFieldsHtml } from './lib/todoFormFields.js'
 import { modelOptions, priorityLevelOptions } from './todoFormOptions.js'
 import { $, $all, escapeHtml, toast, toastError, toastWarning, todayIso, twoStepConfirm, withButtonBusy } from './utils.js'
 import { addTodoToCurrentWeek } from './weekQueue.js'
@@ -248,50 +249,18 @@ function milestoneOptions(selectedId) {
 function renderNewTodoForm() {
   const container = $('#new-todo-form')
   if (container.hidden) return
+  const fields = todoFormFieldsHtml({
+    prefix: 'new-todo',
+    values: { urgency: 1, importance: 1, model: '' },
+    options: {
+      priority: priorityLevelOptions,
+      model: modelOptions,
+      milestone: (selected) => `<option value="">未紐付け</option>${milestoneOptions(selected)}`,
+    },
+    placeholders: { title: '例: ログイン画面のエラーハンドリングを追加', description: '補足があれば' },
+  })
   container.innerHTML = `
-    <div class="form-field grow">
-      <label for="new-todo-title">タイトル</label>
-      <input id="new-todo-title" type="text" required placeholder="例: ログイン画面のエラーハンドリングを追加">
-    </div>
-    <div class="form-field grow">
-      <label for="new-todo-desc">説明(任意)</label>
-      <textarea id="new-todo-desc" rows="10" placeholder="補足があれば"></textarea>
-    </div>
-    <div class="form-field">
-      <label for="new-todo-ms">マイルストーン</label>
-      <select id="new-todo-ms"><option value="">未紐付け</option>${milestoneOptions(null)}</select>
-    </div>
-    <div class="form-field">
-      <label for="new-todo-urgency">緊急度</label>
-      <select id="new-todo-urgency">${priorityLevelOptions(1)}</select>
-    </div>
-    <div class="form-field">
-      <label for="new-todo-importance">重要度</label>
-      <select id="new-todo-importance">${priorityLevelOptions(1)}</select>
-    </div>
-    <div class="form-field">
-      <label for="new-todo-due">期限(任意)</label>
-      <input id="new-todo-due" type="date">
-    </div>
-    <div class="form-field">
-      <label for="new-todo-sched-date">予定(任意)</label>
-      <div class="schedule-fields">
-        <input id="new-todo-sched-date" type="date" aria-label="予定の日付">
-        <input id="new-todo-sched-start" type="time" step="300" aria-label="開始時刻">
-        <span>–</span>
-        <input id="new-todo-sched-end" type="time" step="300" aria-label="終了時刻">
-      </div>
-      <p class="field-hint">スケジュール画面の1日タイムラインに置く時間帯。期日とは別です。終了を空にすると開始の1時間後になります。</p>
-    </div>
-    <div class="form-field grow">
-      <label for="new-todo-ws">作業ディレクトリ(任意)</label>
-      <input id="new-todo-ws" type="text" list="workspace-datalist" placeholder="例: /Users/you/projects/my-app (登録済みから選択、または自由入力)">
-      <p class="field-hint">herdr投入時に必須。ここで設定しておくと投入時に引き継がれます。</p>
-    </div>
-    <div class="form-field">
-      <label for="new-todo-model">モデル(任意)</label>
-      <select id="new-todo-model">${modelOptions('')}</select>
-    </div>
+    ${fields}
     <div class="form-actions">
       <button type="submit" class="btn btn-accent" id="new-todo-submit">作成</button>
       <button type="button" class="btn btn-ghost" id="new-todo-cancel">キャンセル</button>

@@ -24,7 +24,8 @@ import { buildModelEditPatch } from './lib/modelPatch.js'
 import { buildSchedulePatch, scheduleFields } from './lib/schedule.js'
 import { resolveModelSelectValue } from './lib/modelOptions.js'
 import { DEFAULT_MINUTES, MAX_MINUTES, formatRemaining, isActive, remainingMs } from './lib/pomodoro.js'
-import { detailRows, formatDateTime } from './lib/todoDetail.js'
+import { DETAIL_GROUPS, detailRows, formatDateTime } from './lib/todoDetail.js'
+import { todoFormFieldIds, todoFormFieldsHtml } from './lib/todoFormFields.js'
 import { buildWorkspacePathEditPatch } from './lib/workspacePathPatch.js'
 import { currentPomodoro, onPomodoroChange, startPomodoro } from './pomodoro.js'
 import { isSettingsDialogOpen } from './settingsDialog.js'
@@ -55,19 +56,14 @@ let pomodoroMinutesValue = String(DEFAULT_MINUTES)
 // The edit form's values while the TODO is being edited, null otherwise. Held
 // here for the same reason as the drafts above: a re-render rebuilds the form.
 let editDraft = null
-// Edit form field id → editDraft key.
-const EDIT_FIELDS = {
-  'detail-edit-title': 'title',
-  'detail-edit-desc': 'description',
-  'detail-edit-urgency': 'urgency',
-  'detail-edit-importance': 'importance',
-  'detail-edit-due': 'dueDate',
-  'detail-edit-sched-date': 'schedDate',
-  'detail-edit-sched-start': 'schedStart',
-  'detail-edit-sched-end': 'schedEnd',
-  'detail-edit-ws': 'workspacePath',
-  'detail-edit-model': 'model',
-}
+// Edit form field id → editDraft key (the ids are todoFormFields.js's,
+// prefixed detail-edit-*).
+const EDIT_FIELDS = todoFormFieldIds('detail-edit')
+// Pull Request / 添付ファイル の折りたたみ状態(開いているパネルのキー)。
+// 10 秒ごとの再描画で <details> が閉じ直されないようにここで持つ。
+// openTodoDetail() で中身のあるパネルだけ開いた状態に戻す。
+const COLLAPSIBLE_PANELS = ['pull-requests', 'attachments']
+let openPanels = new Set()
 // Set while a PR or attachment request is in flight, to disable the buttons —
 // these hit the network twice (DB + `gh`, or DB + disk), so a double click is
 // easy to land.
@@ -116,47 +112,13 @@ function startEditing(todo) {
 }
 
 function editFormBlock() {
-  const d = editDraft
+  const fields = todoFormFieldsHtml({
+    prefix: 'detail-edit',
+    values: editDraft,
+    options: { priority: priorityLevelOptions, model: modelOptions },
+  })
   return `<div class="inline-form stacked detail-edit-form">
-    <div class="form-field grow">
-      <label for="detail-edit-title">タイトル</label>
-      <input id="detail-edit-title" type="text" required value="${escapeHtml(d.title)}">
-    </div>
-    <div class="form-field grow">
-      <label for="detail-edit-desc">説明</label>
-      <textarea id="detail-edit-desc" rows="6">${escapeHtml(d.description)}</textarea>
-    </div>
-    <div class="form-field">
-      <label for="detail-edit-urgency">緊急度</label>
-      <select id="detail-edit-urgency">${priorityLevelOptions(d.urgency)}</select>
-    </div>
-    <div class="form-field">
-      <label for="detail-edit-importance">重要度</label>
-      <select id="detail-edit-importance">${priorityLevelOptions(d.importance)}</select>
-    </div>
-    <div class="form-field">
-      <label for="detail-edit-due">期限(任意)</label>
-      <input id="detail-edit-due" type="date" value="${escapeHtml(d.dueDate)}">
-    </div>
-    <div class="form-field">
-      <label for="detail-edit-sched-date">予定(任意)</label>
-      <div class="schedule-fields">
-        <input id="detail-edit-sched-date" type="date" aria-label="予定の日付" value="${escapeHtml(d.schedDate)}">
-        <input id="detail-edit-sched-start" type="time" step="300" aria-label="開始時刻" value="${escapeHtml(d.schedStart)}">
-        <span>–</span>
-        <input id="detail-edit-sched-end" type="time" step="300" aria-label="終了時刻" value="${escapeHtml(d.schedEnd)}">
-      </div>
-      <p class="field-hint">スケジュール画面の1日タイムラインに置く時間帯。期日とは別です。全部空にすると予定を外します。</p>
-    </div>
-    <div class="form-field grow">
-      <label for="detail-edit-ws">作業ディレクトリ(任意)</label>
-      <input id="detail-edit-ws" type="text" list="workspace-datalist" value="${escapeHtml(d.workspacePath)}" placeholder="例: /Users/you/projects/my-app (登録済みから選択、または自由入力)">
-      <p class="field-hint">herdr投入時に必須。ここで設定しておくと投入時に引き継がれます。</p>
-    </div>
-    <div class="form-field">
-      <label for="detail-edit-model">モデル(任意)</label>
-      <select id="detail-edit-model">${modelOptions(d.model)}</select>
-    </div>
+    ${fields}
     <div class="form-actions">
       <button type="button" class="btn btn-accent" data-action="save-edit-todo" ${busy ? 'disabled' : ''}>保存</button>
       <button type="button" class="btn btn-ghost" data-action="cancel-edit-todo">キャンセル</button>
@@ -211,14 +173,32 @@ async function saveEdit() {
 
 function rowsBlock(todo) {
   // The timezone is left undefined so Intl uses the viewer's own; the due
-  // date is compared against the viewer's local today.
+  // date is compared against the viewer's local today. Rows are shown under
+  // the same headings as the edit form's sections, so 編集 keeps every
+  // item where the reader just saw it.
   const rows = detailRows(todo, undefined, todayIso())
-    .map(
-      (row) =>
-        `<dt>${escapeHtml(row.label)}</dt><dd class="${row.mono ? 'mono' : ''}">${escapeHtml(row.value)}</dd>`
-    )
-    .join('')
-  return `<dl class="detail-rows">${rows}</dl>`
+  const groups = DETAIL_GROUPS.map((group) => {
+    const own = rows.filter((row) => row.group === group)
+    if (own.length === 0) return ''
+    const dl = own
+      .map(
+        (row) =>
+          `<dt>${escapeHtml(row.label)}</dt><dd class="${row.mono ? 'mono' : ''}">${escapeHtml(row.value)}</dd>`
+      )
+      .join('')
+    return `<div class="detail-group"><div class="detail-group-title">${escapeHtml(group)}</div><dl class="detail-rows">${dl}</dl></div>`
+  })
+  return `<div class="detail-groups">${groups.join('')}</div>`
+}
+
+// Pull Request / 添付ファイル は <details> で畳める。見出しに件数を出すので、
+// 畳んだままでも何件あるかは分かる。
+function collapsiblePanel(key, title, count, body) {
+  const open = openPanels.has(key) ? ' open' : ''
+  return `<details class="prompt-panel detail-panel" data-panel="${key}"${open}>
+    <summary class="prompt-panel-head"><span>${title} (${count})</span></summary>
+    ${body}
+  </details>`
 }
 
 function stateBadgeHtml(pr) {
@@ -259,15 +239,17 @@ function pullRequestsBlock(todo) {
   const rows = todo.pullRequests?.length
     ? todo.pullRequests.map(pullRequestRow).join('')
     : `<p class="prompt-panel-empty">PRはまだ紐付けられていません。</p>`
-  return `<div class="prompt-panel">
-    <div class="prompt-panel-head"><span>Pull Request</span></div>
-    ${rows}
+  return collapsiblePanel(
+    'pull-requests',
+    'Pull Request',
+    todo.pullRequests?.length ?? 0,
+    `${rows}
     <div class="pr-add">
       <input id="pr-url-input" type="url" value="${escapeHtml(pullRequestUrlValue)}" placeholder="https://github.com/owner/repo/pull/123" ${busy ? 'disabled' : ''}>
       <button type="button" class="btn" data-action="add-pull-request" ${busy ? 'disabled' : ''}>${busy ? '処理中…' : '追加'}</button>
     </div>
-    <div class="form-error" id="pr-error" hidden></div>
-  </div>`
+    <div class="form-error" id="pr-error" hidden></div>`
+  )
 }
 
 function attachmentRow(attachment) {
@@ -300,16 +282,18 @@ function attachmentsBlock(todo) {
   // listener below for why that patch can't just be a re-render.
   const stagedText = selectedFile === null ? '' : `選択中: ${escapeHtml(selectedFile.name)}`
   const staged = `<div id="attachment-selected" class="attachment-selected" ${selectedFile === null ? 'hidden' : ''}>${stagedText}</div>`
-  return `<div class="prompt-panel">
-    <div class="prompt-panel-head"><span>添付ファイル</span></div>
-    ${rows}
+  return collapsiblePanel(
+    'attachments',
+    '添付ファイル',
+    todo.attachments?.length ?? 0,
+    `${rows}
     <div class="attachment-add">
       <input id="attachment-file-input" type="file" ${disabled}${reasonAttr}>
       <button type="button" class="btn" data-action="upload-attachment" ${disabled}${reasonAttr}>${busy ? '処理中…' : 'アップロード'}</button>
     </div>
     ${staged}
-    <div class="form-error" id="attachment-error" hidden></div>
-  </div>`
+    <div class="form-error" id="attachment-error" hidden></div>`
+  )
 }
 
 function commentRow(comment) {
@@ -345,23 +329,22 @@ function commentsBlock(todo) {
   </div>`
 }
 
-// Starts the sidebar timer tied to this TODO. While that timer is this
-// TODO's, the panel says so instead of offering a second start; a timer for
-// another TODO (or a free one) can be replaced, behind a two-step confirm.
-function pomodoroBlock(todo) {
+// Starts the sidebar timer tied to this TODO. Lives in the footer next to
+// 編集/完了 — it is an action, not a record, so it does not get a panel of
+// its own. While that timer is this TODO's, the control says so instead of
+// offering a second start; a timer for another TODO (or a free one) can be
+// replaced, behind a two-step confirm.
+function pomodoroControl(todo) {
   const timer = currentPomodoro()
   const mine = isActive(timer) && timer.todoId === todo.id
-  const body = mine
-    ? `<p class="pomo-running-note">🍅 このTODOでポモドーロ中です(残り ${formatRemaining(remainingMs(timer, Date.now()))}${timer.status === 'paused' ? '・一時停止中' : ''})。操作は左メニューから。</p>`
-    : `<div class="pomo-start-row">
-        <input id="pomodoro-minutes-input" type="number" min="1" max="${MAX_MINUTES}" step="1" value="${escapeHtml(pomodoroMinutesValue)}" aria-label="ポモドーロの分数">
-        <span class="pomo-unit">分</span>
-        <button type="button" class="btn" data-action="start-pomodoro">🍅 ポモドーロ開始</button>
-      </div>`
-  return `<div class="prompt-panel">
-    <div class="prompt-panel-head"><span>ポモドーロ</span></div>
-    ${body}
-    <div class="form-error" id="pomodoro-error" hidden></div>
+  if (mine) {
+    const paused = timer.status === 'paused' ? '・一時停止中' : ''
+    return `<span class="pomo-running-note detail-pomo" title="操作は左メニューから">🍅 残り ${formatRemaining(remainingMs(timer, Date.now()))}${paused}</span>`
+  }
+  return `<div class="pomo-start-row detail-pomo">
+    <input id="pomodoro-minutes-input" type="number" min="1" max="${MAX_MINUTES}" step="1" value="${escapeHtml(pomodoroMinutesValue)}" aria-label="ポモドーロの分数">
+    <span class="pomo-unit">分</span>
+    <button type="button" class="btn" data-action="start-pomodoro">🍅 開始</button>
   </div>`
 }
 
@@ -373,11 +356,11 @@ function startTodoPomodoro(btn) {
       startPomodoro({ minutes: pomodoroMinutesValue, todoId: todo.id, todoTitle: todo.title })
       toast(`🍅 ポモドーロを開始しました: ${escapeHtml(todo.title)}`)
     } catch (err) {
-      showDialogError('#pomodoro-error', err.message)
+      toastError(err.message)
     }
   }
   if (isActive(currentPomodoro())) {
-    twoStepConfirm(btn, run, { armedText: '実行中のタイマーを置き換える？', restoreText: '🍅 ポモドーロ開始' })
+    twoStepConfirm(btn, run, { armedText: 'タイマーを置き換える？', restoreText: '🍅 開始' })
   } else {
     run()
   }
@@ -408,19 +391,24 @@ function renderDialog() {
     </div>
     ${milestoneLine(todo)}
     ${editDraft ? editFormBlock() : `${descriptionBlock(todo)}${rowsBlock(todo)}`}
+    ${commentsBlock(todo)}
     ${pullRequestsBlock(todo)}
     ${attachmentsBlock(todo)}
-    ${pomodoroBlock(todo)}
-    ${commentsBlock(todo)}
     <div class="modal-footer">
       ${editDraft ? '' : '<button type="button" class="btn" data-action="edit-todo">編集</button>'}
       ${completeButtonHtml(todo)}
       <button type="button" class="btn btn-ghost" data-action="close-todo-detail">閉じる</button>
+      ${pomodoroControl(todo)}
     </div>`
 }
 
 export function openTodoDetail(todoId) {
   detailTodoId = todoId
+  // 中身のあるパネルだけ開いて始める(空のパネルは入力欄だけなので畳む)。
+  const todo = getState().todos.find((t) => t.id === todoId)
+  openPanels = new Set()
+  if (todo?.pullRequests?.length) openPanels.add('pull-requests')
+  if (todo?.attachments?.length) openPanels.add('attachments')
   pullRequestUrlValue = ''
   selectedFile = null
   commentDraft = ''
@@ -626,6 +614,17 @@ export function initTodoDetailDialog() {
     if (ev.target.id === 'todo-detail-backdrop') closeDialog()
   })
   $('#todo-detail-dialog').addEventListener('click', handleDialogClick)
+  // <details> の toggle はバブリングしないので capture で拾う。
+  $('#todo-detail-dialog').addEventListener(
+    'toggle',
+    (ev) => {
+      const key = ev.target?.dataset?.panel
+      if (!key || !COLLAPSIBLE_PANELS.includes(key)) return
+      if (ev.target.open) openPanels.add(key)
+      else openPanels.delete(key)
+    },
+    true
+  )
   $('#todo-detail-dialog').addEventListener('input', (ev) => {
     if (ev.target.id === 'pr-url-input') pullRequestUrlValue = ev.target.value
     if (ev.target.id === 'comment-body-input') commentDraft = ev.target.value

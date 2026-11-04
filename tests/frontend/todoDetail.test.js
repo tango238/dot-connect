@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import { detailRows, formatDateTime, parseSqliteUtc, SESSION_LABEL } from '../../public/js/lib/todoDetail.js'
+import { DETAIL_GROUPS, detailRows, formatDateTime, parseSqliteUtc, SESSION_LABEL } from '../../public/js/lib/todoDetail.js'
 
 function todo(overrides) {
   return {
@@ -104,16 +104,35 @@ describe('detailRows', () => {
     )
     expect(labels(rows)).toEqual([
       'ステータス',
+      'セッション',
+      '優先度',
       '期限',
       '予定',
-      '優先度',
-      'セッション',
       '作業ディレクトリ',
       'モデル',
       '作成',
       '投入',
       '完了',
     ])
+    // 編集フォームのセクションと同じ見出しでまとまる(順番もその通り)。
+    expect(rows.map((r) => r.group)).toEqual([
+      '状態',
+      '状態',
+      '優先度・日程',
+      '優先度・日程',
+      '優先度・日程',
+      'herdr 投入',
+      'herdr 投入',
+      '履歴',
+      '履歴',
+      '履歴',
+    ])
+    expect(rows.every((r) => DETAIL_GROUPS.includes(r.group))).toBe(true)
+  })
+
+  test('Grill rows sit with the status rows', () => {
+    const rows = detailRows(todo({ grilledAt: '2026-07-31 01:50:00' }), 'UTC')
+    expect(rows.find((r) => r.label === 'Grill')?.group).toBe('状態')
   })
 
   test('status reads 未着手 when open and 完了 when done', () => {
@@ -164,6 +183,7 @@ describe('detailRows', () => {
   test('model is flagged mono and dropped when the todo uses the default', () => {
     const rows = detailRows(todo({ model: 'claude-opus-5' }), 'UTC')
     expect(rows.find((r) => r.label === 'モデル')).toEqual({
+      group: 'herdr 投入',
       label: 'モデル',
       value: 'claude-opus-5',
       mono: true,
@@ -194,6 +214,7 @@ describe('detailRows', () => {
   test('workspacePath is flagged mono and dropped when blank', () => {
     const rows = detailRows(todo({ workspacePath: '/tmp/proj' }), 'UTC')
     expect(rows.find((r) => r.label === '作業ディレクトリ')).toEqual({
+      group: 'herdr 投入',
       label: '作業ディレクトリ',
       value: '/tmp/proj',
       mono: true,

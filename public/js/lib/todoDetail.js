@@ -49,44 +49,51 @@ function sessionValue(todo) {
   return todo.herdrPaneId ? `${label} (${todo.herdrPaneId})` : label
 }
 
+// detailRows の各行が属するまとまり。編集フォーム(todoFormFields.js)の
+// セクションと同じ見出しにして、閲覧と編集で項目の場所を揃える。
+export const DETAIL_GROUPS = ['状態', '優先度・日程', 'herdr 投入', '履歴']
+
 /**
  * Builds the dialog's metadata rows. Rows whose underlying value is absent
- * are omitted entirely rather than rendered blank.
+ * are omitted entirely rather than rendered blank. Each row carries the
+ * `group` it is shown under (one of DETAIL_GROUPS); rows come out grouped
+ * and in display order.
  * `today` is a local 'YYYY-MM-DD' — passed in rather than read from the
  * clock so the due row is testable.
- * @returns {Array<{label: string, value: string, mono?: boolean}>}
+ * @returns {Array<{label: string, value: string, group: string, mono?: boolean}>}
  */
 export function detailRows(todo, timeZone, today) {
+  const [STATE, PRIORITY, DISPATCH, HISTORY] = DETAIL_GROUPS
   // 「未完了」ではなく実際の状態(実行中/レビュー待ち/確認待ち/未着手)を出す。
   // 一覧のタブと同じ分類なので、どのタブで見つかるかが詳細からも分かる。
-  const rows = [{ label: 'ステータス', value: BUCKET_LABEL[todoBucket(todo)] }]
+  const rows = [{ group: STATE, label: 'ステータス', value: BUCKET_LABEL[todoBucket(todo)] }]
+  // Grilled 済みかどうかは自動投入の条件なので、詳細でも分かるようにする。
+  if (todo.grillDir) rows.push({ group: STATE, label: 'Grill', value: 'Grill 中(Grilled で確定)' })
+  else if (todo.grilledAt) rows.push({ group: STATE, label: 'Grill', value: `Grilled 済み ${formatDateTime(todo.grilledAt, timeZone) ?? ''}`.trim() })
+  if (todo.sessionState) rows.push({ group: STATE, label: 'セッション', value: sessionValue(todo) })
+  // All badges return null for the default/unset case (and for todos that
+  // predate any of these fields), which lines up with this function's own
+  // rule of omitting a row rather than rendering it blank.
+  if (priorityBadge(todo)) rows.push({ group: PRIORITY, label: '優先度', value: formatPriority(todo) })
   // Reuses the row badge's own wording ("今日", "8/5 (2日超過)"), so the
   // dialog and the list never disagree about how near a deadline is.
   const due = dueBadge(todo.dueDate, today)
-  if (due) rows.push({ label: '期限', value: due.label })
+  if (due) rows.push({ group: PRIORITY, label: '期限', value: due.label })
   // 予定(スケジュール画面の時間帯)。期日と並べて出すが別物 —— 期日は締切。
   const schedule = formatSchedule(todo)
-  if (schedule) rows.push({ label: '予定', value: schedule, mono: true })
-  // All three badges return null for the default/unset case (and for todos
-  // that predate any of these fields), which lines up with this function's
-  // own rule of omitting a row rather than rendering it blank.
-  if (priorityBadge(todo)) rows.push({ label: '優先度', value: formatPriority(todo) })
-  // Grilled 済みかどうかは自動投入の条件なので、詳細でも分かるようにする。
-  if (todo.grillDir) rows.push({ label: 'Grill', value: 'Grill 中(Grilled で確定)' })
-  else if (todo.grilledAt) rows.push({ label: 'Grill', value: `Grilled 済み ${formatDateTime(todo.grilledAt, timeZone) ?? ''}`.trim() })
-  if (todo.sessionState) rows.push({ label: 'セッション', value: sessionValue(todo) })
+  if (schedule) rows.push({ group: PRIORITY, label: '予定', value: schedule, mono: true })
   if (todo.workspacePath) {
-    rows.push({ label: '作業ディレクトリ', value: todo.workspacePath, mono: true })
+    rows.push({ group: DISPATCH, label: '作業ディレクトリ', value: todo.workspacePath, mono: true })
   }
   const model = modelBadge(todo.model)
-  if (model) rows.push({ label: 'モデル', value: model.label, mono: true })
+  if (model) rows.push({ group: DISPATCH, label: 'モデル', value: model.label, mono: true })
   for (const [label, value] of [
     ['作成', todo.createdAt],
     ['投入', todo.dispatchedAt],
     ['完了', todo.completedAt],
   ]) {
     const formatted = formatDateTime(value, timeZone)
-    if (formatted) rows.push({ label, value: formatted })
+    if (formatted) rows.push({ group: HISTORY, label, value: formatted })
   }
   return rows
 }
