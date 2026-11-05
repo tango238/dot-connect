@@ -162,7 +162,6 @@ export const api = {
     request('DELETE', `/api/reports/weekly/queue/${todoId}?weekStart=${encodeURIComponent(weekStart)}`),
   reorderWeekQueue: (weekStart, todoIds) => request('PUT', '/api/reports/weekly/queue/order', { weekStart, todoIds }),
   // 行の「herdr に投入する/しない」。
-  setWeekQueueDispatch: (weekStart, todoId, dispatch) => request('PATCH', `/api/reports/weekly/queue/${todoId}`, { weekStart, dispatch }),
   // Live numbers for the week (no claude call, safe to re-fetch freely).
   getReportStats: (weekStart) =>
     request('GET', `/api/reports/weekly/stats${weekStart ? `?weekStart=${encodeURIComponent(weekStart)}` : ''}`),

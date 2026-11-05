@@ -761,9 +761,10 @@ h1 { font-size: 20px; font-weight: 700; }
 .queue-title:hover { color: var(--accent); }
 .queue-ready { font-size: 10.5px; font-weight: 700; color: var(--done-unread); border: 1px solid rgba(74,194,107,.4); border-radius: 8px; padding: 1px 7px; flex-shrink: 0; }
 .queue-wait { font-size: 10.5px; color: var(--text-faint); border: 1px dashed var(--border); border-radius: 8px; padding: 1px 7px; flex-shrink: 0; max-width: 220px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.queue-herdr { display: inline-flex; align-items: center; gap: 4px; font-size: 11px; color: var(--text-dim); flex-shrink: 0; cursor: pointer; }
-.queue-herdr input { accent-color: var(--accent); }
-.queue-manual { font-size: 10.5px; color: var(--text-dim); border: 1px solid var(--border); border-radius: 8px; padding: 1px 7px; flex-shrink: 0; }
+/* herdr / 自分 の印(表示だけ。切り替えは TODO 側)。 */
+.queue-mode { font-size: 10.5px; font-weight: 700; border-radius: 8px; padding: 1px 7px; flex-shrink: 0; }
+.queue-mode.herdr { color: var(--accent); border: 1px solid rgba(63,182,168,.4); }
+.queue-mode.self { color: var(--text-dim); border: 1px solid var(--border); }
 .queue-due { display: inline-flex; align-items: center; gap: 4px; font-size: 11px; color: var(--text-dim); flex-shrink: 0; }
 .queue-due.overdue { color: var(--blocked); }
 .queue-due input { font: inherit; font-size: 12px; background: var(--bg-raise); color: var(--text); border: 1px solid var(--border); border-radius: 6px; padding: 2px 6px; }
@@ -1139,7 +1140,7 @@ h1 { font-size: 20px; font-weight: 700; }
         <div class="queue-auto" id="queue-auto"></div>
         <div class="queue-list" id="queue-list"></div>
         <div class="queue-add" id="queue-add"></div>
-        <p class="field-hint">「目標を生成」で拾った TODO がここに並びます(期日の無い TODO には週末の期日が付きます)。↑↓ で実行順、期日欄で期日を変えられます。自動投入を有効にすると、空き枠(WIP可能数 − バッファ)がある間、上から順に herdr への投入を<strong>確認してから</strong>行います。候補になるのは Grill me → Grilled を通し、作業ディレクトリのある TODO だけです。herdr に投入しないタスク(自分でやる)は、行の「herdr」を外すと一覧に並べたまま投入の対象から外れます。</p>
+        <p class="field-hint">「目標を生成」で拾った TODO がここに並びます(期日の無い TODO には週末の期日が付きます)。↑↓ で実行順、期日欄で期日を変えられます。自動投入を有効にすると、空き枠(WIP可能数 − バッファ)がある間、上から順に herdr への投入を<strong>確認してから</strong>行います。候補になるのは Grill me → Grilled を通し、作業ディレクトリのある TODO だけです。各行の「herdr」「自分」の印は TODO 側で決まったもの(Grilled 済みを登録すると herdr、Grill を通さず登録すると自分)で、「自分」の行は一覧に並んだまま投入の対象から外れます。</p>
       </section>
       <div id="report-analysis"></div>
     </section>

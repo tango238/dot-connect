@@ -33,6 +33,16 @@ export function autoRunCapacity(settings, todos) {
   return { limit, buffer, running, slots, free: Math.max(0, slots - running) }
 }
 
+/** 行の「herdr / 自分」の印。herdr でやるか自分でやるかは TODO 側で決まる
+ * (Grilled 済みを「目標に登録」すると herdr、Grill を通さず登録すると自分)ので、
+ * 目標ページでは表示するだけで切り替えない。完了行には出さない。 */
+export function queueModeLabel(todo) {
+  if (!todo || todo.status === 'done') return null
+  return todo.queueDispatch === false
+    ? { mode: 'self', label: '自分', title: '自分でやるタスク(herdr には投入しません)。herdr か自分かは TODO 側で決めます' }
+    : { mode: 'herdr', label: 'herdr', title: 'herdr に投入するタスク。herdr か自分かは TODO 側で決めます' }
+}
+
 /** 投入できない理由。投入できるなら null。queueDispatch が false の行(自分で
  * やるタスク)は、Grilled でも投入しない。 */
 export function dispatchReadiness(todo) {

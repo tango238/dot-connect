@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import { autoRunCapacity, autoRunPlan, dispatchReadiness, moveId } from '../../public/js/lib/weekQueue.js'
+import { autoRunCapacity, autoRunPlan, dispatchReadiness, moveId, queueModeLabel } from '../../public/js/lib/weekQueue.js'
 
 const ready = (id, extra = {}) => ({ id, title: `t${id}`, status: 'open', sessionState: null, grillDir: null, grilledAt: '2026-11-01 00:00:00', workspacePath: '/w', ...extra })
 
@@ -65,6 +65,15 @@ describe('autoRunPlan', () => {
   test('nothing ready → no candidate', () => {
     expect(autoRunPlan([ready(1, { workspacePath: null })], [], settings).candidate).toBeNull()
     expect(autoRunPlan([], [], settings)).toMatchObject({ candidate: null, canPropose: false, waiting: [] })
+  })
+})
+
+describe('queueModeLabel', () => {
+  test('herdr rows and 自分 rows get their label; done rows get none', () => {
+    expect(queueModeLabel(ready(1))).toMatchObject({ mode: 'herdr', label: 'herdr' })
+    expect(queueModeLabel(ready(1, { queueDispatch: false }))).toMatchObject({ mode: 'self', label: '自分' })
+    expect(queueModeLabel(ready(1, { status: 'done' }))).toBeNull()
+    expect(queueModeLabel(null)).toBeNull()
   })
 })
 

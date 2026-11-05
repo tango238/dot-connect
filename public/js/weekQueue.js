@@ -13,7 +13,7 @@ import { dueBadge } from './lib/dueBadge.js'
 import { priorityBadge } from './lib/priority.js'
 import { SESSION_LABEL } from './lib/todoDetail.js'
 import { mondayOf } from './lib/week.js'
-import { autoRunPlan, dispatchReadiness, moveId } from './lib/weekQueue.js'
+import { autoRunPlan, dispatchReadiness, moveId, queueModeLabel } from './lib/weekQueue.js'
 import { wipBlockedReason } from './lib/wipLimit.js'
 import { openPromptDialog } from './promptDialog.js'
 import { getState, setState } from './state.js'
@@ -136,9 +136,15 @@ function sessionBadge(todo) {
   return `<span class="sess ${escapeHtml(todo.sessionState)}"><span class="s-dot"></span>${escapeHtml(label)}</span>`
 }
 
+// herdr / 自分 の印(表示だけ。切り替えは TODO 側 —— lib/weekQueue.js の queueModeLabel)。
+function modeBadge(todo) {
+  const mode = queueModeLabel(todo)
+  if (!mode) return ''
+  return `<span class="queue-mode ${mode.mode}" title="${escapeHtml(mode.title)}">${escapeHtml(mode.label)}</span>`
+}
+
 function readinessBadge(todo) {
-  if (todo.status === 'done') return ''
-  if (todo.queueDispatch === false) return `<span class="queue-manual" title="herdr には投入しません。自分でやるタスクとして並べています">自分でやる</span>`
+  if (todo.status === 'done' || todo.queueDispatch === false) return ''
   const reason = dispatchReadiness(todo)
   if (reason === null) return `<span class="queue-ready" title="Grilled 済み・作業ディレクトリあり。自動投入の候補になります">投入可</span>`
   if (todo.sessionState && !todo.grillDir) return ''
@@ -170,10 +176,7 @@ function rowHtml(todo, index, count) {
     <span class="st">${statusIcon(todo)}</span>
     <button type="button" class="queue-title" data-action="open-todo-detail" data-id="${todo.id}" title="クリックで詳細を表示"><span class="todo-id">#${todo.id}</span> ${escapeHtml(todo.title)}</button>
     ${prio ? `<span class="prio-badge ${prio.className}" title="${prio.title}">${prio.label}</span>` : ''}
-    ${sessionBadge(todo)}${readinessBadge(todo)}${dispatchButton(todo)}
-    <label class="queue-herdr" title="herdr に投入する対象にするか(外すと自分でやるタスクになり、自動投入・投入の対象から外れます)">
-      <input type="checkbox" data-action="queue-herdr" data-id="${todo.id}" ${todo.queueDispatch === false ? '' : 'checked'} ${disabled || done ? 'disabled' : ''}> herdr
-    </label>
+    ${modeBadge(todo)}${sessionBadge(todo)}${readinessBadge(todo)}${dispatchButton(todo)}
     <label class="queue-due ${due?.className ?? ''}" title="期日(変えるとすぐ保存)">期日
       <input type="date" data-action="queue-due" data-id="${todo.id}" value="${escapeHtml(todo.dueDate ?? '')}" ${disabled}>
     </label>
@@ -303,7 +306,6 @@ function handleChange(ev) {
   const action = el.dataset?.action
   if (el.id === 'queue-add-select') addDraft = el.value
   else if (action === 'queue-due') void changeDue(Number(el.dataset.id), el.value)
-  else if (action === 'queue-herdr') void mutate(() => api.setWeekQueueDispatch(queue.weekStart, Number(el.dataset.id), el.checked))
   else if (action === 'auto-toggle') void saveAutoRun({ autoRunEnabled: el.checked })
   else if (action === 'auto-buffer') {
     const buffer = Number(el.value)
