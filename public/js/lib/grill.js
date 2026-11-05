@@ -19,7 +19,7 @@ export function grillButton(todo) {
   if (isGrilled(todo)) return null
   return {
     action: 'grill',
-    label: 'Grill me',
+    label: 'プロンプトを作成',
     title: 'herdr セッションで質問しながら詳細を詰めます',
   }
 }
@@ -50,7 +50,7 @@ export function weekGoalButton(todo, currentWeekIds = []) {
       self: true,
       action: 'add-to-week',
       label: '目標に登録',
-      title: 'herdr には投入せず、自分でやるタスクとして目標の「今週終わらせるタスク」に追加します(herdr に流すなら先に Grill me)。期日が無ければ週末が付きます',
+      title: 'herdr には投入せず、自分でやるタスクとして目標の「今週終わらせるタスク」に追加します(herdr に流すなら先に「プロンプトを作成」)。期日が無ければ週末が付きます',
     }
   }
   return {

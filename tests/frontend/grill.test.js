@@ -20,7 +20,7 @@ describe('grillButton', () => {
   test('no session, no grillDir -> Grill', () => {
     const b = grillButton({ status: 'open', grillDir: null, sessionState: null })
     expect(b.action).toBe('grill')
-    expect(b.label).toBe('Grill me')
+    expect(b.label).toBe('プロンプトを作成')
   })
   test('a Grilled todo gets no Grill button (the row offers 目標に登録 instead)', () => {
     expect(grillButton({ status: 'open', grillDir: null, sessionState: null, grilledAt: '2026-11-01 00:00:00' })).toBeNull()

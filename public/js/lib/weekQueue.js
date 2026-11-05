@@ -51,7 +51,7 @@ export function dispatchReadiness(todo) {
   if (todo.queueDispatch === false) return 'herdr に投入しない(自分でやる)'
   if (todo.grillDir) return 'Grill 中(Grilled を押して確定してから)'
   if (todo.sessionState) return '実行中'
-  if (!todo.grilledAt) return 'Grill 未実施(Grill me → Grilled が条件)'
+  if (!todo.grilledAt) return 'Grill 未実施(「プロンプトを作成」→ Grilled が条件)'
   if (!todo.workspacePath) return '作業ディレクトリ未設定'
   return null
 }

@@ -42,7 +42,7 @@ describe('autoRunPlan', () => {
     const plan = autoRunPlan(queue, queue, settings)
     expect(plan.candidate.id).toBe(2)
     expect(plan.canPropose).toBe(true)
-    expect(plan.waiting.map((w) => [w.todo.id, w.reason])).toEqual([[1, 'Grill 未実施(Grill me → Grilled が条件)']])
+    expect(plan.waiting.map((w) => [w.todo.id, w.reason])).toEqual([[1, 'Grill 未実施(「プロンプトを作成」→ Grilled が条件)']])
     expect(plan.done).toBe(1)
   })
 
