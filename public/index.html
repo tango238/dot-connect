@@ -103,6 +103,9 @@ nav { display: flex; flex-direction: column; gap: 2px; }
   background: var(--bg-hover); color: var(--text-dim);
   padding: 1px 7px; border-radius: 10px;
 }
+/* 「目標」の横: 今日完了した TODO の数。1 件以上ならアクセント色で目立たせる */
+.nav-done-today.active { background: var(--accent-dim); color: var(--accent); }
+.nav-btn[aria-current="page"] .nav-done-today.active { background: var(--accent); color: var(--bg); }
 .side-sec { margin-top: 22px; }
 .side-label { font-size: 11px; font-weight: 600; color: var(--text-faint); text-transform: uppercase; letter-spacing: .08em; padding: 0 10px 6px; }
 .side-ms { display: flex; align-items: center; gap: 8px; padding: 6px 10px; border-radius: var(--radius); cursor: pointer; }
@@ -1010,7 +1013,7 @@ h1 { font-size: 20px; font-weight: 700; }
     <button class="sidebar-toggle" id="sidebar-toggle" type="button" aria-expanded="true">«</button>
     <div class="logo"><div class="logo-dot"></div><div class="logo-name">dot<span>-</span>connect</div></div>
     <nav aria-label="メイン">
-      <button class="nav-btn" data-page="report" aria-current="page" title="目標"><span class="n-ico">▤</span><span class="nav-label">目標</span></button>
+      <button class="nav-btn" data-page="report" aria-current="page" title="目標"><span class="n-ico">▤</span><span class="nav-label">目標</span><span class="nav-count nav-done-today" id="count-done-today" aria-label="今日完了した TODO">–</span></button>
       <div class="pomo" id="pomodoro" data-status="idle" aria-label="ポモドーロタイマー" role="group"></div>
       <div class="wip" id="wip-meter" role="meter" aria-label="WIP" aria-valuemin="0" hidden><span class="wip-cells" id="wip-cells"></span><span class="wip-label" id="wip-label"></span></div>
       <div class="wip-todos" id="wip-todos" aria-label="WIP中のTODO" hidden></div>

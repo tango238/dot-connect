@@ -22,7 +22,8 @@ import { initTodoDetailDialog, openTodoDetail } from './todoDetailDialog.js'
 import { hasOpenTodoForm, initTodos, renderTodos, renderWorkspaceDatalist } from './todos.js'
 import { initWorkspaceManager } from './workspaceManager.js'
 import { SESSION_LABEL } from './lib/todoDetail.js'
-import { $, $all, escapeHtml, toastError } from './utils.js'
+import { completedTodayCount, doneTodayBadge } from './lib/doneToday.js'
+import { $, $all, escapeHtml, toastError, todayIso } from './utils.js'
 
 const POLL_MS = 10_000
 const PR_REFRESH_MS = 5 * 60_000
@@ -49,6 +50,12 @@ function renderSidebar() {
   const { todos, milestones, herdr } = getState()
   $('#count-todos').textContent = todos.filter((t) => t.status !== 'done').length
   $('#count-ms').textContent = milestones.filter((m) => m.status !== 'done').length
+  // 「目標」の横に今日完了した TODO の数(見ている人のローカル日付で数える)
+  const done = doneTodayBadge(completedTodayCount(todos, todayIso()))
+  const doneEl = $('#count-done-today')
+  doneEl.textContent = done.text
+  doneEl.title = done.title
+  doneEl.classList.toggle('active', done.active)
   const count = managedSessionCount()
   $('#hs-count').textContent = count
   $('#hs-conn').textContent = herdr.connected ? '接続中' : '未接続'
