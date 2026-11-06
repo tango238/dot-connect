@@ -38,6 +38,16 @@ export function setDispatch(db: Database, weekStart: string, todoId: number, dis
   return true
 }
 
+/**
+ * その TODO が入っている週の行をすべて herdr に投入する対象(dispatch=1)にする。
+ * Grill 前に「自分でやる」として登録した TODO が後から Grilled になったとき、
+ * 登録し直さなくても投入対象へ切り替わるように、Grill 完了時に呼ぶ。
+ * @returns 変えた行数
+ */
+export function markDispatchForTodo(db: Database, todoId: number): number {
+  return db.run(`UPDATE week_queue SET dispatch = 1 WHERE todo_id = ? AND dispatch = 0`, [todoId]).changes
+}
+
 export function has(db: Database, weekStart: string, todoId: number): boolean {
   const row = db.query(`SELECT 1 AS x FROM week_queue WHERE week_start = ? AND todo_id = ?`).get(weekStart, todoId)
   return row !== null

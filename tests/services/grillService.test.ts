@@ -7,6 +7,7 @@ import { createDatabase } from '../../src/db/database'
 import * as appSettingsRepo from '../../src/db/appSettingsRepo'
 import * as dispatchEventRepo from '../../src/db/dispatchEventRepo'
 import * as todoRepo from '../../src/db/todoRepo'
+import * as weekQueueRepo from '../../src/db/weekQueueRepo'
 import type {
   CreateWorkspaceParams,
   CreatedWorkspace,
@@ -228,6 +229,19 @@ describe('finishGrill', () => {
     expect(finished.dispatchedAt).toBeNull()
     expect(client.closeWorkspaceCalls).toEqual(['w1'])
     expect(existsSync(dir)).toBe(false)
+  })
+
+  test('switches a todo already queued as 自分でやる to herdr once it is Grilled', async () => {
+    const { todo, client, dir } = await grilling()
+    // Grill 前に「目標に登録」すると自分でやるタスク(dispatch=false)として入る
+    weekQueueRepo.add(db, '2026-11-02', todo.id, false)
+    weekQueueRepo.add(db, '2026-11-09', todo.id, false)
+    writeFileSync(join(dir, 'GRILLED.md'), '# Fix the login timeout\n\n- extend it\n')
+
+    await finishGrill(db, client, todo.id, options())
+
+    expect(weekQueueRepo.listEntries(db, '2026-11-02')).toEqual([{ todoId: todo.id, dispatch: true }])
+    expect(weekQueueRepo.listEntries(db, '2026-11-09')).toEqual([{ todoId: todo.id, dispatch: true }])
   })
 
   test('nudges a live session and picks up the file written in response', async () => {
