@@ -13,6 +13,7 @@ import { api } from './api.js'
 import { refreshBoth, refreshTodos, toggleTodoComplete } from './data.js'
 import { needsCompletionConfirm } from './lib/completionConfirm.js'
 import { formatFileSize, uploadDisabledReason } from './lib/attachment.js'
+import { dueBadge } from './lib/dueBadge.js'
 import {
   pullRequestHeadline,
   pullRequestLabel,
@@ -35,9 +36,11 @@ import { modelOptions, priorityLevelOptions } from './todoFormOptions.js'
 import { $, escapeHtml, toast, toastError, todayIso, twoStepConfirm, withButtonBusy } from './utils.js'
 
 let detailTodoId = null
+// 閲覧状態の「期限」はその場で変えられる(編集を開かなくてよい)。選ぶと即保存。
+const DUE_INPUT_ID = 'detail-due-input'
 // Fields whose focus pauses poll-driven re-renders of this dialog — see the
 // subscribe() call in initTodoDetailDialog.
-const TYPING_FIELD_IDS = new Set(['pr-url-input', 'comment-body-input', 'pomodoro-minutes-input'])
+const TYPING_FIELD_IDS = new Set(['pr-url-input', 'comment-body-input', 'pomodoro-minutes-input', DUE_INPUT_ID])
 // Text in the "add a PR URL" field. Held here rather than read off the DOM
 // at submit time because a background poll can re-render the dialog (and
 // rebuild the input) while the user is mid-typing.
@@ -178,17 +181,47 @@ function rowsBlock(todo) {
   // item where the reader just saw it.
   const rows = detailRows(todo, undefined, todayIso())
   const groups = DETAIL_GROUPS.map((group) => {
-    const own = rows.filter((row) => row.group === group)
-    if (own.length === 0) return ''
+    const own = rows.filter((row) => row.group === group && row.label !== '期限')
+    // 期限は読むだけの行ではなく date 入力(未設定でも出す)。優先度・日程の先頭。
+    const due = group === DETAIL_GROUPS[1] ? dueRowHtml(todo) : ''
+    if (own.length === 0 && !due) return ''
     const dl = own
       .map(
         (row) =>
           `<dt>${escapeHtml(row.label)}</dt><dd class="${row.mono ? 'mono' : ''}">${escapeHtml(row.value)}</dd>`
       )
       .join('')
-    return `<div class="detail-group"><div class="detail-group-title">${escapeHtml(group)}</div><dl class="detail-rows">${dl}</dl></div>`
+    return `<div class="detail-group"><div class="detail-group-title">${escapeHtml(group)}</div><dl class="detail-rows">${due}${dl}</dl></div>`
   })
-  return `<div class="detail-groups">${groups.join('')}</div>`
+  return `<div class="detail-groups">${groups.join('')}</div><div class="form-error" id="due-error" hidden></div>`
+}
+
+function dueRowHtml(todo) {
+  const badge = dueBadge(todo.dueDate, todayIso())
+  const badgeHtml = badge ? `<span class="due-badge ${badge.className}">${escapeHtml(badge.label)}</span>` : ''
+  return `<dt><label for="${DUE_INPUT_ID}">期限</label></dt><dd class="detail-due">
+    <input id="${DUE_INPUT_ID}" type="date" value="${escapeHtml(todo.dueDate ?? '')}" title="変えるとすぐ保存" ${busy ? 'disabled' : ''}>
+    ${badgeHtml}
+  </dd>`
+}
+
+// 期限の即時保存。今週の一覧にある TODO の期日は空にできない(週キューと同じ
+// 約束 —— weekQueue.js の changeDue)。
+async function changeDue(value) {
+  const todo = currentTodo()
+  if (!todo || (todo.dueDate ?? '') === value) return
+  const inWeek = (getState().weekQueue?.todos ?? []).some((t) => t.id === todo.id)
+  if (!value && inWeek) {
+    showDialogError('#due-error', '今週の一覧にある TODO の期日は空にできません')
+    renderDialog()
+    return
+  }
+  const todoId = todo.id
+  await runDialogAction(
+    () => api.updateTodo(todoId, { dueDate: value || null }),
+    value ? `期限を ${value.slice(5).replace('-', '/')} にしました` : '期限を外しました',
+    '#due-error'
+  )
 }
 
 // Pull Request / 添付ファイル は <details> で畳める。見出しに件数を出すので、
@@ -641,6 +674,10 @@ export function initTodoDetailDialog() {
   // until the next render, up to 10s later, while the upload itself would
   // already be using the second file.
   $('#todo-detail-dialog').addEventListener('change', (ev) => {
+    if (ev.target.id === DUE_INPUT_ID) {
+      void changeDue(ev.target.value)
+      return
+    }
     if (ev.target.id !== 'attachment-file-input') return
     selectedFile = ev.target.files?.[0] ?? null
     const stagedEl = $('#attachment-selected')

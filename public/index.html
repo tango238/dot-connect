@@ -791,6 +791,10 @@ h1 { font-size: 20px; font-weight: 700; }
 .detail-rows dt { color: var(--text-dim); font-size: 12.5px; }
 .detail-rows dd { font-size: 13px; }
 .detail-rows dd.mono { font-family: var(--mono); font-size: 12px; word-break: break-all; }
+.detail-due { display: flex; align-items: center; gap: 8px; }
+.detail-due input { font: inherit; font-size: 12px; background: var(--bg); color: var(--text); border: 1px solid var(--border); border-radius: 6px; padding: 2px 6px; }
+.detail-due input:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
+.detail-rows dt label { cursor: pointer; }
 .detail-desc { font-size: 13px; white-space: pre-wrap; color: var(--text-dim); }
 .detail-empty { font-size: 13px; color: var(--text-faint); }
 /* ---------- settings dialog ---------- */
