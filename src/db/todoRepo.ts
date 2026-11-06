@@ -6,6 +6,7 @@ import type {
   TodoComment,
   TodoPullRequest,
   TodoStatus,
+  DispatchMode,
 } from '../types'
 import { PRIORITY_DEFAULT, prioritySqlOrder } from '../services/priority'
 import * as todoAttachmentRepo from './todoAttachmentRepo'
@@ -39,6 +40,7 @@ interface TodoRow {
   updated_at: string | null
   grill_dir: string | null
   grilled_at: string | null
+  dispatch_mode: string | null
 }
 
 const SELECT_WITH_MILESTONE = `
@@ -49,7 +51,7 @@ const SELECT_WITH_MILESTONE = `
     t.herdr_workspace_id, t.herdr_tab_id, t.herdr_pane_id,
     t.session_state, t.dispatched_at, t.completed_at, t.completed_milestone_id, t.model, t.due_date,
     t.scheduled_start, t.scheduled_end,
-    t.created_at, t.updated_at, t.grill_dir, t.grilled_at
+    t.created_at, t.updated_at, t.grill_dir, t.grilled_at, t.dispatch_mode
   FROM todos t
   LEFT JOIN milestones m ON m.id = t.milestone_id
 `
@@ -102,6 +104,7 @@ function mapRow(
     updatedAt: row.updated_at,
     grillDir: row.grill_dir,
     grilledAt: row.grilled_at,
+    dispatchMode: row.dispatch_mode === 'herdr' || row.dispatch_mode === 'self' ? row.dispatch_mode : null,
     pullRequests,
     attachments,
     comments,
@@ -200,6 +203,8 @@ export interface UpdateTodoInput {
   // Same undefined/null convention as workspacePath: undefined leaves the
   // stored model untouched, null clears it back to "use claude's default".
   readonly model?: string | null
+  // herdr / 自分 の明示指定。undefined は据え置き、null は「自動」に戻す。
+  readonly dispatchMode?: DispatchMode
 }
 
 export function update(db: Database, id: number, input: UpdateTodoInput): Todo | null {
@@ -249,6 +254,10 @@ export function update(db: Database, id: number, input: UpdateTodoInput): Todo |
   if (input.model !== undefined) {
     sets.push('model = ?')
     values.push(input.model)
+  }
+  if (input.dispatchMode !== undefined) {
+    sets.push('dispatch_mode = ?')
+    values.push(input.dispatchMode)
   }
 
   // sets が空なら SQL 自体を撃たない(既存の挙動)。updated_at もその中に置く

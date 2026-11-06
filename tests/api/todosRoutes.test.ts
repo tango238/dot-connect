@@ -1,6 +1,7 @@
 import { describe, expect, test } from 'bun:test'
 import * as todoRepo from '../../src/db/todoRepo'
 import * as milestoneRepo from '../../src/db/milestoneRepo'
+import * as weekQueueRepo from '../../src/db/weekQueueRepo'
 import { createTestApp, readJson, type FakeHerdrClient } from './testApp'
 import { herdrWorkspaceLabel } from '../../src/services/herdrWorkspaceLabel'
 
@@ -290,6 +291,34 @@ describe('POST /api/todos', () => {
 })
 
 describe('PATCH /api/todos/:id', () => {
+  test('dispatchMode is validated, stored, and realigns the week-queue mark (so does workspacePath)', async () => {
+    const { app, deps } = createTestApp()
+    const todo = todoRepo.create(deps.db, { title: 'plain' })
+    weekQueueRepo.add(deps.db, '2026-11-02', todo.id, false)
+    const patch = (body: unknown) =>
+      app.request(`/api/todos/${todo.id}`, { method: 'PATCH', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) })
+
+    expect((await patch({ dispatchMode: 'maybe' })).status).toBe(400)
+
+    const herdr = await readJson(await patch({ dispatchMode: 'herdr' }))
+    expect(herdr.data.dispatchMode).toBe('herdr')
+    expect(weekQueueRepo.listEntries(deps.db, '2026-11-02')).toEqual([{ todoId: todo.id, dispatch: true }])
+
+    // 自動に戻す: 作業ディレクトリも Grilled も無いので自分
+    const auto = await readJson(await patch({ dispatchMode: null }))
+    expect(auto.data.dispatchMode).toBeNull()
+    expect(weekQueueRepo.listEntries(deps.db, '2026-11-02')).toEqual([{ todoId: todo.id, dispatch: false }])
+
+    // 自動のまま作業ディレクトリを付けると herdr
+    await patch({ workspacePath: '/tmp/w' })
+    expect(weekQueueRepo.listEntries(deps.db, '2026-11-02')).toEqual([{ todoId: todo.id, dispatch: true }])
+
+    // 関係ない更新では触らない
+    weekQueueRepo.setDispatch(deps.db, '2026-11-02', todo.id, false)
+    await patch({ title: 'renamed' })
+    expect(weekQueueRepo.listEntries(deps.db, '2026-11-02')).toEqual([{ todoId: todo.id, dispatch: false }])
+  })
+
   test('updates fields on an existing todo', async () => {
     const { app, deps } = createTestApp()
     const todo = todoRepo.create(deps.db, { title: 'old' })

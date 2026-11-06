@@ -15,7 +15,7 @@ import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node
 import { tmpdir } from 'node:os'
 import { basename, dirname, isAbsolute, join } from 'node:path'
 import * as todoRepo from '../db/todoRepo'
-import * as weekQueueRepo from '../db/weekQueueRepo'
+import { syncQueueDispatch } from './weekQueueService'
 import { ExecTimeoutError } from '../herdr/exec'
 import type { HerdrClient } from '../herdr/herdrClient'
 import { assertPromptTextSupported } from '../herdr/promptArgs'
@@ -351,10 +351,6 @@ async function finishGrillOnce(
   const result = parseGrilledResult(text)
   todoRepo.update(db, todoId, { title: result.title, description: result.description })
   todoRepo.markGrilled(db, todoId)
-  // Grill 前に「自分でやる」として今週の一覧に入れていた TODO は、Grilled に
-  // なった時点で herdr に投入する対象へ切り替える(herdr か自分かは TODO 側で
-  // 決まるので、一覧側で登録し直す必要はない)。
-  weekQueueRepo.markDispatchForTodo(db, todoId)
   await closeGrillSession(db, herdr, todo)
   cleanupGrill(db, todoId)
 
@@ -362,6 +358,11 @@ async function finishGrillOnce(
   if (!finished) {
     throw new Error(`Failed to load todo ${todoId} after finishing grill`)
   }
+  // Grill 前に「自分でやる」として今週の一覧に入れていた TODO は、Grilled に
+  // なった時点で herdr に投入する対象へ切り替える(明示的に「自分でやる」と
+  // 指定してあればそのまま)。herdr か自分かは TODO 側で決まるので、一覧側で
+  // 登録し直す必要はない。
+  syncQueueDispatch(db, finished)
   return finished
 }
 

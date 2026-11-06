@@ -203,6 +203,8 @@ export const updateTodoSchema = withScheduleCheck(
     scheduledEnd: nullableScheduledAt,
     workspacePath: nullableWorkspacePath,
     model: nullableModel,
+    // herdr / 自分 の明示指定。null で「自動」に戻す。
+    dispatchMode: z.enum(['herdr', 'self']).nullable().optional(),
   })
 )
 

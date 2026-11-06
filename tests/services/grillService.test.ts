@@ -244,6 +244,17 @@ describe('finishGrill', () => {
     expect(weekQueueRepo.listEntries(db, '2026-11-09')).toEqual([{ todoId: todo.id, dispatch: true }])
   })
 
+  test('leaves a queued row as 自分 when the todo explicitly says self', async () => {
+    const { todo, client, dir } = await grilling()
+    todoRepo.update(db, todo.id, { dispatchMode: 'self' })
+    weekQueueRepo.add(db, '2026-11-02', todo.id, false)
+    writeFileSync(join(dir, 'GRILLED.md'), '# Fix the login timeout\n\n- extend it\n')
+
+    await finishGrill(db, client, todo.id, options())
+
+    expect(weekQueueRepo.listEntries(db, '2026-11-02')).toEqual([{ todoId: todo.id, dispatch: false }])
+  })
+
   test('nudges a live session and picks up the file written in response', async () => {
     const { todo, client, dir } = await grilling()
     client.onSubmit = (text) => {

@@ -43,6 +43,10 @@ describe('isGrilled / weekGoalButton', () => {
     expect(weekGoalButton(grilled, [7])).toMatchObject({ registered: true, label: '今週の目標' })
     expect(weekGoalButton({ ...grilled, status: 'done' }, [])).toBeNull()
     expect(weekGoalButton({ ...grilled, grilledAt: null }, [])).toMatchObject({ registered: false, self: true, action: 'add-to-week', label: '目標に登録' })
+    // herdr か自分かは TODO 側の判定: 作業ディレクトリがあれば Grill 前でも herdr、明示の self はその逆
+    expect(weekGoalButton({ ...grilled, grilledAt: null, workspacePath: '/w' }, [])).toMatchObject({ registered: false, self: false })
+    expect(weekGoalButton({ ...grilled, dispatchMode: 'self' }, [])).toMatchObject({ registered: false, self: true })
+    expect(weekGoalButton({ ...grilled, grilledAt: null, dispatchMode: 'herdr' }, [])).toMatchObject({ registered: false, self: false })
     expect(weekGoalButton({ ...grilled, grilledAt: null }, [7])).toMatchObject({ registered: true })
     expect(weekGoalButton({ ...grilled, sessionState: 'working' }, [])).toBeNull()
     expect(weekGoalButton({ ...grilled, grillDir: '/g' }, [])).toBeNull()

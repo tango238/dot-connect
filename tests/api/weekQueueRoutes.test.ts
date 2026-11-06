@@ -2,7 +2,7 @@ import { describe, expect, test } from 'bun:test'
 import { createDatabase } from '../../src/db/database'
 import * as todoRepo from '../../src/db/todoRepo'
 import * as weekQueueRepo from '../../src/db/weekQueueRepo'
-import { addToQueue, listQueue, reorderQueue } from '../../src/services/weekQueueService'
+import { addToQueue, listQueue, queueDispatchFor, reorderQueue, syncQueueDispatch } from '../../src/services/weekQueueService'
 import { createTestApp, readJson } from './testApp'
 
 const WEEK = '2026-07-20'
@@ -52,6 +52,41 @@ describe('weekQueueService', () => {
     addToQueue(db, WEEK, undated.id, true)
     expect(listQueue(db, WEEK).todos[0]!.dispatch).toBe(false)
     expect(reorderQueue(db, WEEK, [dated.id]).todos.map((t) => t.title)).toEqual(['dated', 'undated'])
+  })
+
+  test('queueDispatchFor: explicit mode wins, otherwise a workspace or Grilled means herdr', () => {
+    const t = (over: Partial<{ dispatchMode: 'herdr' | 'self' | null; workspacePath: string | null; grilledAt: string | null }>) => ({
+      dispatchMode: null, workspacePath: null, grilledAt: null, ...over,
+    })
+    expect(queueDispatchFor(t({}))).toBe(false)
+    expect(queueDispatchFor(t({ workspacePath: '/w' }))).toBe(true)
+    expect(queueDispatchFor(t({ grilledAt: '2026-11-01 00:00:00' }))).toBe(true)
+    expect(queueDispatchFor(t({ workspacePath: '/w', grilledAt: '2026-11-01 00:00:00', dispatchMode: 'self' }))).toBe(false)
+    expect(queueDispatchFor(t({ dispatchMode: 'herdr' }))).toBe(true)
+  })
+
+  test('addToQueue uses the TODO-side decision, and syncQueueDispatch realigns every week the todo is in', () => {
+    const db = createDatabase(':memory:')
+    const withWs = todoRepo.create(db, { title: 'ws', workspacePath: '/w' })
+    const plain = todoRepo.create(db, { title: 'plain' })
+    addToQueue(db, WEEK, withWs.id)
+    addToQueue(db, WEEK, plain.id)
+    addToQueue(db, '2026-07-27', plain.id)
+    expect(listQueue(db, WEEK).todos.map((t) => [t.title, t.dispatch])).toEqual([['ws', true], ['plain', false]])
+
+    // 自分でやる → 作業ディレクトリを付けたら両方の週で herdr に
+    const updated = todoRepo.update(db, plain.id, { workspacePath: '/p' })!
+    expect(syncQueueDispatch(db, updated)).toBe(2)
+    expect(listQueue(db, WEEK).todos.find((t) => t.id === plain.id)!.dispatch).toBe(true)
+    expect(listQueue(db, '2026-07-27').todos[0]!.dispatch).toBe(true)
+
+    // 明示の「自分でやる」は作業ディレクトリがあっても自分
+    const self = todoRepo.update(db, withWs.id, { dispatchMode: 'self' })!
+    expect(self.dispatchMode).toBe('self')
+    expect(syncQueueDispatch(db, self)).toBe(1)
+    expect(listQueue(db, WEEK).todos.find((t) => t.id === withWs.id)!.dispatch).toBe(false)
+    // 何も変わらなければ 0 行
+    expect(syncQueueDispatch(db, self)).toBe(0)
   })
 })
 

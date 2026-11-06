@@ -76,6 +76,11 @@ export const updateTodoShape = {
     .nullable()
     .optional()
     .describe(`${MODEL_DESCRIPTION} null を指定すると設定済みの値をクリアする。`),
+  dispatchMode: z
+    .enum(['herdr', 'self'])
+    .nullable()
+    .optional()
+    .describe('herdr に投入する TODO か(herdr)、自分でやる TODO か(self)。null で自動(作業ディレクトリがあるか Grilled 済みなら herdr)に戻す。'),
 }
 
 export const idOnlyShape = { id: z.number().int().positive() }
@@ -187,6 +192,7 @@ export function updateTodo(
     scheduledEnd?: string | null
     workspacePath?: string | null
     model?: string | null
+    dispatchMode?: 'herdr' | 'self' | null
   }
 ) {
   const { id, ...body } = args

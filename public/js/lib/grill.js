@@ -1,3 +1,5 @@
+import { isHerdrTask } from './dispatchMode.js'
+
 // Grill: a herdr session where Claude Code interviews the user to firm up a
 // TODO. Which button a row shows is decided here so it stays testable.
 
@@ -31,10 +33,10 @@ export function isGrilled(todo) {
 
 /**
  * TODO 一覧の「目標に登録」: 未完了 TODO を今週終わらせるタスク(目標ページ)に
- * 足す導線。Grilled 済みなら herdr に投入する対象として、Grill を通していなければ
- * 「自分でやる」タスク(herdr には流さない)として入る(self: true)。既に入って
- * いれば押せない印になる。セッション中・Grill 中は出さない(その行には別の
- * ボタンがある)。
+ * 足す導線。herdr か自分かは TODO 側の判定(dispatchMode.js: 明示指定、無ければ
+ * 作業ディレクトリか Grilled があれば herdr)で、自分でやるタスクなら self: true
+ * (herdr には流さない)。既に入っていれば押せない印になる。セッション中・
+ * Grill 中は出さない(その行には別のボタンがある)。
  * @param {object} todo
  * @param {number[]} currentWeekIds 今週の並びにある TODO の id
  * @returns {{ registered: boolean, self?: boolean, action?: string, label: string, title: string } | null}
@@ -44,13 +46,13 @@ export function weekGoalButton(todo, currentWeekIds = []) {
   if (currentWeekIds.includes(todo.id)) {
     return { registered: true, label: '今週の目標', title: '目標の「今週終わらせるタスク」に入っています' }
   }
-  if (!isGrilled(todo)) {
+  if (!isHerdrTask(todo)) {
     return {
       registered: false,
       self: true,
       action: 'add-to-week',
       label: '目標に登録',
-      title: 'herdr には投入せず、自分でやるタスクとして目標の「今週終わらせるタスク」に追加します(herdr に流すなら先に「プロンプトを作成」)。期日が無ければ週末が付きます',
+      title: 'herdr には投入せず、自分でやるタスクとして目標の「今週終わらせるタスク」に追加します(作業ディレクトリを設定するか「プロンプトを作成」→ Grilled にすると herdr になります。詳細の「投入先」でも選べます)。期日が無ければ週末が付きます',
     }
   }
   return {

@@ -50,7 +50,7 @@ function registerTodoTools(server: McpServer, client: DotConnectClient): void {
     'update_todo',
     {
       description:
-        'TODOのtitle/description/milestoneId/workspacePath/modelを更新する。workspacePathとmodelはどちらもnullでクリアできるが、workspacePathをクリアしたままでは投入(dispatch)できない点に注意。',
+        'TODOのtitle/description/milestoneId/workspacePath/model/dispatchModeを更新する。workspacePathとmodelはどちらもnullでクリアできるが、workspacePathをクリアしたままでは投入(dispatch)できない点に注意。dispatchModeは herdr に投入する TODO か自分でやる TODO かの明示指定(herdr/self、nullで自動)。',
       inputSchema: todoTools.updateTodoShape,
     },
     (args) => todoTools.updateTodo(client, args)

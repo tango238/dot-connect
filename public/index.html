@@ -797,6 +797,9 @@ h1 { font-size: 20px; font-weight: 700; }
 .detail-due { display: flex; align-items: center; gap: 8px; }
 .detail-due input { font: inherit; font-size: 12px; background: var(--bg); color: var(--text); border: 1px solid var(--border); border-radius: 6px; padding: 2px 6px; }
 .detail-due input:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
+.detail-dispatch select { font: inherit; font-size: 12px; background: var(--bg); color: var(--text); border: 1px solid var(--border); border-radius: 6px; padding: 2px 6px; }
+.detail-dispatch select:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
+.detail-dispatch-note { font-size: 11px; color: var(--text-dim); }
 .detail-rows dt label { cursor: pointer; }
 .detail-desc { font-size: 13px; white-space: pre-wrap; color: var(--text-dim); }
 .detail-empty { font-size: 13px; color: var(--text-faint); }
@@ -1043,7 +1046,7 @@ h1 { font-size: 20px; font-weight: 700; }
       </div>
       <div class="wip wip-inline" role="meter" aria-label="WIP" aria-valuemin="0" hidden><span class="wip-cells"></span><span class="wip-label"></span></div>
       <div class="wip-todos wip-todos-inline" aria-label="WIP中のTODO" hidden></div>
-      <p class="page-sub">TODO は「プロンプトを作成」→ Grilled で内容を詰め、「目標に登録」で目標ページの「今週終わらせるタスク」へ。herdr への投入はそこから(手動か自動投入)。完了は手動で確定します。</p>
+      <p class="page-sub">TODO は「目標に登録」で目標ページの「今週終わらせるタスク」へ(内容を詰めるなら先に「プロンプトを作成」→ Grilled)。作業ディレクトリがあるか Grilled 済みなら herdr、どちらも無ければ自分でやるタスクになり、詳細の「投入先」で明示もできます。herdr への投入は目標ページから(手動か自動投入)。完了は手動で確定します。</p>
       <div class="inline-form stacked" id="new-todo-form" hidden></div>
       <div class="filters" role="group" aria-label="フィルタ">
         <button class="chip" data-filter="recent" aria-pressed="true">最近の更新</button>
@@ -1147,7 +1150,7 @@ h1 { font-size: 20px; font-weight: 700; }
         <div class="queue-auto" id="queue-auto"></div>
         <div class="queue-list" id="queue-list"></div>
         <div class="queue-add" id="queue-add"></div>
-        <p class="field-hint">「目標を生成」で拾った TODO がここに並びます(期日の無い TODO には週末の期日が付きます)。↑↓ で実行順、期日欄で期日を変えられます。自動投入を有効にすると、空き枠(WIP可能数 − バッファ)がある間、上から順に herdr への投入を<strong>確認してから</strong>行います。候補になるのは「プロンプトを作成」→ Grilled を通し、作業ディレクトリのある TODO だけです。各行の「herdr」「自分」の印は TODO 側で決まったもの(Grilled 済みを登録すると herdr、Grill を通さず登録すると自分)で、「自分」の行は一覧に並んだまま投入の対象から外れます。</p>
+        <p class="field-hint">「目標を生成」で拾った TODO がここに並びます(期日の無い TODO には週末の期日が付きます)。↑↓ で実行順、期日欄で期日を変えられます。自動投入を有効にすると、空き枠(WIP可能数 − バッファ)がある間、上から順に herdr への投入を<strong>確認してから</strong>行います。候補になるのは「herdr」の印があり作業ディレクトリのある TODO だけです。各行の「herdr」「自分」の印は TODO 側で決まるもの(作業ディレクトリがあるか Grilled 済みなら herdr、どちらも無ければ自分。TODO 詳細の「投入先」で明示できます)で、「自分」の行は一覧に並んだまま投入の対象から外れます。</p>
       </section>
       <div id="report-analysis"></div>
     </section>

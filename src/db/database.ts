@@ -231,6 +231,9 @@ const ADDITIVE_COLUMNS: readonly { table: string; column: string; definition: st
   // Grilled(Grill の結果を TODO に反映)した時刻。自動投入は、これが入って
   // いる(=内容が詰まっている)TODO だけを候補にする。
   { table: 'todos', column: 'grilled_at', definition: 'TEXT' },
+  // herdr に投入する TODO か自分でやる TODO かの明示指定('herdr' / 'self')。
+  // NULL は自動(作業ディレクトリか Grilled があれば herdr)。types.ts 参照。
+  { table: 'todos', column: 'dispatch_mode', definition: 'TEXT' },
   { table: 'week_queue', column: 'dispatch', definition: 'INTEGER NOT NULL DEFAULT 1' },
   // 1日スケジュールに置く予定の開始・終了("YYYY-MM-DDTHH:MM" のローカル
   // 時刻、タイムゾーン無し)。両方 NULL が「予定なし」。片方だけ入ることは

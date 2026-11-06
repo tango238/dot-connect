@@ -28,7 +28,9 @@ describe('dispatchReadiness', () => {
     expect(dispatchReadiness(ready(1, { status: 'done' }))).toBe('完了済み')
     expect(dispatchReadiness(ready(1, { grillDir: '/g' }))).toContain('Grill 中')
     expect(dispatchReadiness(ready(1, { sessionState: 'working' }))).toBe('実行中')
-    expect(dispatchReadiness(ready(1, { grilledAt: null }))).toContain('Grill 未実施')
+    // Grill は内容を詰める手段で、投入の条件ではない(herdr か自分かは TODO 側の判定)
+    expect(dispatchReadiness(ready(1, { grilledAt: null }))).toBeNull()
+    expect(dispatchReadiness(ready(1, { queueDispatch: false }))).toContain('自分でやる')
     expect(dispatchReadiness(ready(1, { workspacePath: null }))).toContain('作業ディレクトリ')
     expect(dispatchReadiness(undefined)).toContain('見つかりません')
   })
@@ -38,11 +40,11 @@ describe('autoRunPlan', () => {
   const settings = { wipLimit: 3, autoRunBuffer: 1 }
 
   test('proposes the first ready todo in order and lists why the others wait', () => {
-    const queue = [ready(1, { grilledAt: null }), ready(2), ready(3), ready(4, { status: 'done' })]
+    const queue = [ready(1, { workspacePath: null }), ready(2), ready(3), ready(4, { status: 'done' })]
     const plan = autoRunPlan(queue, queue, settings)
     expect(plan.candidate.id).toBe(2)
     expect(plan.canPropose).toBe(true)
-    expect(plan.waiting.map((w) => [w.todo.id, w.reason])).toEqual([[1, 'Grill 未実施(「プロンプトを作成」→ Grilled が条件)']])
+    expect(plan.waiting.map((w) => [w.todo.id, w.reason])).toEqual([[1, '作業ディレクトリ未設定']])
     expect(plan.done).toBe(1)
   })
 

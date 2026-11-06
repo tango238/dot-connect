@@ -37,10 +37,30 @@ export function setQueueDispatch(db: Database, weekStart: string, todoId: number
 }
 
 /**
+ * その TODO を herdr に投入する対象にするか(週の一覧の「herdr」「自分」の印)。
+ * TODO 側の明示指定(dispatchMode)が最優先。無ければ自動: 作業ディレクトリが
+ * あるか Grilled 済みなら herdr、どちらも無ければ自分でやるタスク。
+ * フロント側の同じ判定は public/js/lib/dispatchMode.js。
+ */
+export function queueDispatchFor(todo: Pick<Todo, 'dispatchMode' | 'workspacePath' | 'grilledAt'>): boolean {
+  if (todo.dispatchMode === 'herdr') return true
+  if (todo.dispatchMode === 'self') return false
+  return todo.workspacePath !== null || todo.grilledAt !== null
+}
+
+/**
+ * TODO 側の判定が変わったとき(明示指定・作業ディレクトリ・Grilled)、その TODO が
+ * 入っている週の行の印をそろえる。
+ * @returns 変えた行数
+ */
+export function syncQueueDispatch(db: Database, todo: Todo): number {
+  return weekQueueRepo.setDispatchForTodo(db, todo.id, queueDispatchFor(todo))
+}
+
+/**
  * 週に足す(既にあれば並びも herdr の印も変えない)。期日が無ければ週末を入れる。
- * dispatch(herdr に投入する対象か)を省くと、Grilled 済みなら true、Grill を
- * 通していなければ false(自分でやるタスク)になる —— Grill 無しで登録できる
- * のは herdr に流さないものだから。
+ * dispatch(herdr に投入する対象か)を省くと queueDispatchFor(TODO 側の判定)
+ * になる。
  * @throws NotFoundError TODO が無いとき
  */
 export function addToQueue(db: Database, weekStart: string, todoId: number, dispatch?: boolean): Todo {
@@ -48,7 +68,7 @@ export function addToQueue(db: Database, weekStart: string, todoId: number, disp
   if (todo === null) {
     throw new NotFoundError(`Todo ${todoId} not found`)
   }
-  weekQueueRepo.add(db, weekStart, todoId, dispatch ?? todo.grilledAt !== null)
+  weekQueueRepo.add(db, weekStart, todoId, dispatch ?? queueDispatchFor(todo))
   if (todo.dueDate === null) {
     return todoRepo.update(db, todoId, { dueDate: weekEndOf(weekStart) }) ?? todo
   }

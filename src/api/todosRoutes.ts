@@ -2,6 +2,7 @@ import type { Context } from 'hono'
 import { Hono } from 'hono'
 import * as milestoneRepo from '../db/milestoneRepo'
 import * as todoRepo from '../db/todoRepo'
+import { syncQueueDispatch } from '../services/weekQueueService'
 import { resolveUploadDir } from '../db/uploadDirLocation'
 import { removeStoredFilesForTodo } from '../services/attachmentFiles'
 import { assertAllowedModel } from '../services/modelValidation'
@@ -60,6 +61,11 @@ function updateTodoHandler(deps: AppDependencies) {
       const updated = todoRepo.update(deps.db, id, input)
       if (updated === null) {
         return fail(c, 404, `Todo ${id} not found`)
+      }
+      // herdr か自分かは TODO 側で決まる: 明示指定か作業ディレクトリが変わったら
+      // 週の一覧の印もそろえる。
+      if (input.dispatchMode !== undefined || input.workspacePath !== undefined) {
+        syncQueueDispatch(deps.db, updated)
       }
       return ok(c, updated)
     })

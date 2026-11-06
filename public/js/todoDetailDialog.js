@@ -26,6 +26,7 @@ import { buildSchedulePatch, scheduleFields } from './lib/schedule.js'
 import { resolveModelSelectValue } from './lib/modelOptions.js'
 import { DEFAULT_MINUTES, MAX_MINUTES, formatRemaining, isActive, remainingMs } from './lib/pomodoro.js'
 import { DETAIL_GROUPS, detailRows, formatDateTime } from './lib/todoDetail.js'
+import { DISPATCH_MODE_OPTIONS, dispatchModeLabel, dispatchModeNote } from './lib/dispatchMode.js'
 import { todoFormFieldIds, todoFormFieldsHtml } from './lib/todoFormFields.js'
 import { buildWorkspacePathEditPatch } from './lib/workspacePathPatch.js'
 import { currentPomodoro, onPomodoroChange, startPomodoro } from './pomodoro.js'
@@ -38,9 +39,10 @@ import { $, escapeHtml, toast, toastError, todayIso, twoStepConfirm, withButtonB
 let detailTodoId = null
 // 閲覧状態の「期限」はその場で変えられる(編集を開かなくてよい)。選ぶと即保存。
 const DUE_INPUT_ID = 'detail-due-input'
+const DISPATCH_MODE_ID = 'detail-dispatch-mode'
 // Fields whose focus pauses poll-driven re-renders of this dialog — see the
 // subscribe() call in initTodoDetailDialog.
-const TYPING_FIELD_IDS = new Set(['pr-url-input', 'comment-body-input', 'pomodoro-minutes-input', DUE_INPUT_ID])
+const TYPING_FIELD_IDS = new Set(['pr-url-input', 'comment-body-input', 'pomodoro-minutes-input', DUE_INPUT_ID, DISPATCH_MODE_ID])
 // Text in the "add a PR URL" field. Held here rather than read off the DOM
 // at submit time because a background poll can re-render the dialog (and
 // rebuild the input) while the user is mid-typing.
@@ -184,14 +186,16 @@ function rowsBlock(todo) {
     const own = rows.filter((row) => row.group === group && row.label !== '期限')
     // 期限は読むだけの行ではなく date 入力(未設定でも出す)。優先度・日程の先頭。
     const due = group === DETAIL_GROUPS[1] ? dueRowHtml(todo) : ''
-    if (own.length === 0 && !due) return ''
+    // 投入先(herdr / 自分)は TODO 側で決めるもの。herdr 投入の先頭に select で出す。
+    const dispatch = group === DETAIL_GROUPS[2] ? dispatchRowHtml(todo) : ''
+    if (own.length === 0 && !due && !dispatch) return ''
     const dl = own
       .map(
         (row) =>
           `<dt>${escapeHtml(row.label)}</dt><dd class="${row.mono ? 'mono' : ''}">${escapeHtml(row.value)}</dd>`
       )
       .join('')
-    return `<div class="detail-group"><div class="detail-group-title">${escapeHtml(group)}</div><dl class="detail-rows">${due}${dl}</dl></div>`
+    return `<div class="detail-group"><div class="detail-group-title">${escapeHtml(group)}</div><dl class="detail-rows">${due}${dispatch}${dl}</dl></div>`
   })
   return `<div class="detail-groups">${groups.join('')}</div><div class="form-error" id="due-error" hidden></div>`
 }
@@ -203,6 +207,32 @@ function dueRowHtml(todo) {
     <input id="${DUE_INPUT_ID}" type="date" value="${escapeHtml(todo.dueDate ?? '')}" title="変えるとすぐ保存" ${busy ? 'disabled' : ''}>
     ${badgeHtml}
   </dd>`
+}
+
+function dispatchRowHtml(todo) {
+  if (todo.status === 'done') return ''
+  const current = todo.dispatchMode ?? ''
+  const options = DISPATCH_MODE_OPTIONS.map(
+    (o) => `<option value="${o.value}" ${current === o.value ? 'selected' : ''}>${o.label}</option>`
+  ).join('')
+  const note = dispatchModeNote(todo)
+  const noteHtml = note ? `<span class="detail-dispatch-note">${escapeHtml(note)}</span>` : ''
+  return `<dt><label for="${DISPATCH_MODE_ID}">投入先</label></dt><dd class="detail-due detail-dispatch">
+    <select id="${DISPATCH_MODE_ID}" title="変えるとすぐ保存。今週の一覧にあれば「herdr」「自分」の印も変わります" ${busy ? 'disabled' : ''}>${options}</select>
+    ${noteHtml}
+  </dd>`
+}
+
+// 投入先(herdr / 自分 / 自動)の即時保存。サーバーが今週の一覧の印もそろえる。
+async function changeDispatchMode(value) {
+  const todo = currentTodo()
+  if (!todo || (todo.dispatchMode ?? '') === value) return
+  const todoId = todo.id
+  await runDialogAction(
+    () => api.updateTodo(todoId, { dispatchMode: value || null }),
+    `投入先を「${dispatchModeLabel(value)}」にしました`,
+    '#due-error'
+  )
 }
 
 // 期限の即時保存。今週の一覧にある TODO の期日は空にできない(週キューと同じ
@@ -676,6 +706,10 @@ export function initTodoDetailDialog() {
   $('#todo-detail-dialog').addEventListener('change', (ev) => {
     if (ev.target.id === DUE_INPUT_ID) {
       void changeDue(ev.target.value)
+      return
+    }
+    if (ev.target.id === DISPATCH_MODE_ID) {
+      void changeDispatchMode(ev.target.value)
       return
     }
     if (ev.target.id !== 'attachment-file-input') return

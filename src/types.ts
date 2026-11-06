@@ -105,6 +105,8 @@ export interface WorkspacePathHistory {
   readonly usedAt: string
 }
 
+export type DispatchMode = 'herdr' | 'self' | null
+
 export interface Todo {
   readonly id: number
   readonly title: string
@@ -156,6 +158,11 @@ export interface Todo {
   readonly grillDir: string | null
   // Grilled で内容を確定した時刻(UTC)。null なら Grill を通していない。
   readonly grilledAt: string | null
+  // herdr に投入する TODO か、自分でやる TODO か(TODO 側で決める)。null は
+  // 「自動」: 作業ディレクトリがあるか Grilled 済みなら herdr、どちらも無ければ
+  // 自分。週の一覧(week_queue.dispatch)はこの判定の写しで、変わると同期する
+  // (weekQueueService.ts の queueDispatchFor / syncQueueDispatch)。
+  readonly dispatchMode: DispatchMode
   // Always present (empty when none are linked). Carried on the todo itself
   // rather than fetched separately because the detail dialog holds only a
   // todo id and re-reads everything it shows from the polled todo list —
