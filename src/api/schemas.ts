@@ -285,6 +285,8 @@ export const queueReorderSchema = z.object({
 // 「整理する」は未保存の入力にも効かせたいので、本文を直接受ける。
 export const tidyGoalSchema = z.object({
   body: z.string().trim().min(1, '整理する目標を入力してください').max(GOAL_MAX_LENGTH),
+  // 指定されると、その週の「今週終わらせるタスク」の完了状況も確認に使う。
+  weekStart: dateString.optional(),
 })
 
 // herdr の workspace/tab/pane ID。形式は herdr 側の都合で決まるので

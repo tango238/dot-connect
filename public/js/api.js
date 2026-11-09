@@ -150,7 +150,7 @@ export const api = {
   getReportGoal: (weekStart) =>
     request('GET', `/api/reports/weekly/goal?weekStart=${encodeURIComponent(weekStart)}`),
   saveReportGoal: (weekStart, body) => request('POST', '/api/reports/weekly/goal', { weekStart, body }),
-  tidyReportGoal: (body) => request('POST', '/api/reports/weekly/goal/tidy', { body }),
+  tidyReportGoal: (body, weekStart) => request('POST', '/api/reports/weekly/goal/tidy', { body, weekStart }),
   // その週に期限のあるマイルストーン・TODO と優先度の高いものから、目標の
   // 下書き(Markdown)を作る。`{ body }`。保存はしない。
   generateReportGoal: (weekStart) => request('POST', '/api/reports/weekly/goal/generate', { weekStart }),

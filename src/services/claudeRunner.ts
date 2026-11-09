@@ -35,7 +35,14 @@ export interface ClaudeRunner {
    * 目標の文章を、内容を変えずに読みやすく整える(週次レポートの「整理する」)。
    * 整理後の本文だけを返す。
    */
-  tidyGoal(body: string): Promise<string>
+  tidyGoal(body: string, todos?: readonly GoalTodoStatus[]): Promise<string>
+}
+
+/** 整理のときに渡す、目標に関係しそうな TODO の現在の状態。 */
+export interface GoalTodoStatus {
+  readonly id: number
+  readonly title: string
+  readonly done: boolean
 }
 
 export interface ClaudeRunnerOptions {
@@ -80,12 +87,16 @@ export const TIDY_GOAL_INSTRUCTIONS = [
   '守ること: 項目を追加・削除・言い換えで弱めたり強めたりしない。数字・固有名詞・期限はそのまま。重複だけはまとめる。',
   '書式は Markdown: 箇条書きが向くなら「- 」、やることなら「- [ ] 」のチェックリスト、いくつかの塊に分かれるなら「## 」の見出し。元の見出し・チェック状態(- [x])はそのまま残す。',
   '元が短ければ短いまま。出力は整理後の本文のみ(前置き・説明・コードフェンスは不要)。',
+  '完了の確認: 下の「TODOの状態」で完了済みのTODO(#番号またはタイトルが一致するもの)に当たるチェックリストの行は「- [x] 」にする。未完了のものを [x] にしない。既に [x] の行を [ ] に戻さない。状態の一覧にないものは元のまま。',
   '',
-  '--- 目標 ---',
 ].join('\n')
 
-function buildTidyPrompt(body: string): string {
-  return `${TIDY_GOAL_INSTRUCTIONS}\n${body}`
+function buildTidyPrompt(body: string, todos: readonly GoalTodoStatus[]): string {
+  const status =
+    todos.length === 0
+      ? '--- TODOの状態 ---\n(なし)'
+      : `--- TODOの状態 ---\n${todos.map((t) => `#${t.id} ${t.title}: ${t.done ? '完了' : '未完了'}`).join('\n')}`
+  return `${TIDY_GOAL_INSTRUCTIONS}\n${status}\n\n--- 目標 ---\n${body}`
 }
 
 // Strips a code fence the model may still wrap plain text in.
@@ -163,8 +174,8 @@ export function createClaudeRunner(
       return result.data
     },
 
-    async tidyGoal(body) {
-      const resultText = stripCodeFence(await runPrompt(buildTidyPrompt(body))).trim()
+    async tidyGoal(body, todos = []) {
+      const resultText = stripCodeFence(await runPrompt(buildTidyPrompt(body, todos))).trim()
       if (resultText.length === 0) {
         throw new Error('claude -p returned an empty result for the goal')
       }

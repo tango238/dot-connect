@@ -1,11 +1,13 @@
 import { Hono } from 'hono'
 import * as reportRepo from '../db/reportRepo'
+import * as todoRepo from '../db/todoRepo'
 import * as weeklyGoalRepo from '../db/weeklyGoalRepo'
 import { formatLocalDate, mostRecentMonday } from '../services/localDate'
 import { generateWeeklyReport } from '../services/reportService'
 import { computeWeeklyStats } from '../services/reportStatsService'
 import { addToQueue, listQueue, removeFromQueue, reorderQueue, setQueueDispatch } from '../services/weekQueueService'
 import { buildWeeklyGoalDraft } from '../services/weeklyGoalDraftService'
+import type { Todo } from '../types'
 import type { AppDependencies } from './dependencies'
 import { fail, handle, ok } from './response'
 import {
@@ -134,7 +136,18 @@ export function createReportsRoutes(deps: AppDependencies): Hono {
   app.post('/weekly/goal/tidy', async (c) => {
     return handle(c, async () => {
       const input = parseOrThrow(tidyGoalSchema, await c.req.json())
-      const body = await deps.claudeRunner.tidyGoal(input.body)
+      // 本文の #番号と、その週の一覧の TODO について完了かどうかを渡し、
+      // 終わっているものは [x] にしてもらう。
+      const byId = new Map<number, Todo>()
+      for (const m of input.body.matchAll(/#(\d+)/g)) {
+        const todo = todoRepo.getById(deps.db, Number(m[1]))
+        if (todo) byId.set(todo.id, todo)
+      }
+      if (input.weekStart) {
+        for (const todo of listQueue(deps.db, input.weekStart).todos) byId.set(todo.id, todo)
+      }
+      const todos = [...byId.values()].map((t) => ({ id: t.id, title: t.title, done: t.status === 'done' }))
+      const body = await deps.claudeRunner.tidyGoal(input.body, todos)
       return ok(c, { body })
     })
   })

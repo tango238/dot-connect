@@ -1137,9 +1137,9 @@ h1 { font-size: 20px; font-weight: 700; }
         <div class="rep-goal-actions">
           <button class="btn btn-accent" id="goal-save" type="button" disabled>保存</button>
           <button class="btn" id="goal-generate" type="button" title="この週に期限のあるマイルストーン・TODO と、緊急度・重要度の高いものを拾って目標の下書きを作ります">目標を生成</button>
-          <button class="btn" id="goal-tidy" type="button">整理する <span class="ai-tag">claude -p</span></button>
+          <button class="btn" id="goal-tidy" type="button">整理する</button>
           <button class="btn btn-ghost" id="goal-undo" type="button" hidden>元に戻す</button>
-          <span class="field-hint">Markdown で書けます(# 見出し、- 箇条書き、- [ ] チェック、**太字**)。保存した目標は AI の振り返りにも渡されます。「目標を生成」はこの週に期限のあるマイルストーン・TODO と緊急度・重要度の高いものから下書きを作り、「整理する」は内容を変えずに読みやすく整えて保存します。</span>
+          <span class="field-hint">Markdown で書けます(# 見出し、- 箇条書き、- [ ] チェック、**太字**)。保存した目標は AI の振り返りにも渡されます。「目標を生成」はこの週に期限のあるマイルストーン・TODO と緊急度・重要度の高いものから下書きを作り、「整理する」は内容を変えずに読みやすく整え、完了済みの TODO は [x] にして保存します。</span>
         </div>
       </section>
       <!-- 今週終わらせるタスク: 目標の下の実行順リスト。中身は weekQueue.js が

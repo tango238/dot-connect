@@ -417,7 +417,7 @@ async function tidyGoal() {
   renderGoalChrome()
   setGoalStatus('整理しています… claude -p の実行のため数十秒かかる場合があります')
   try {
-    const { body: tidied } = await api.tidyReportGoal(body)
+    const { body: tidied } = await api.tidyReportGoal(body, weekStart)
     if (goal.weekStart !== weekStart) return
     goal.undo = before
     els.text.value = tidied

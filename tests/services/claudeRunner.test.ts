@@ -28,7 +28,18 @@ describe('createClaudeRunner tidyGoal', () => {
     const prompt = calls[0]?.[2] ?? ''
     expect(prompt).toContain('内容・意図・約束している範囲を変えずに')
     expect(prompt.endsWith('検索を出す。CIを速く。')).toBe(true)
+    expect(prompt).toContain('TODOの状態')
     expect(calls[0]).toContain('--output-format')
+  })
+
+  test('passes TODO completion states so finished ones can be checked off', async () => {
+    const calls: string[][] = []
+    const exec: ExecFn = async (cmd) => {
+      calls.push(cmd)
+      return { stdout: outerEnvelope('- [x] #3 検索'), stderr: '', exitCode: 0 }
+    }
+    await createClaudeRunner(exec, 'claude').tidyGoal('- [ ] #3 検索', [{ id: 3, title: '検索', done: true }])
+    expect(calls[0]?.[2]).toContain('#3 検索: 完了')
   })
 
   test('unwraps a code fence the model wrapped the text in', async () => {
