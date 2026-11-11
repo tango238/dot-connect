@@ -19,8 +19,8 @@ const dateString = z
 
 const colorString = z.string().regex(COLOR_PATTERN, 'Expected a #RRGGBB hex color')
 
-function targetOnOrAfterStart(data: { startDate?: string; targetDate?: string }): boolean {
-  if (data.startDate === undefined || data.targetDate === undefined) {
+function targetOnOrAfterStart(data: { startDate?: string; targetDate?: string | null }): boolean {
+  if (data.startDate === undefined || data.targetDate === undefined || data.targetDate === null) {
     return true
   }
   return data.targetDate >= data.startDate
@@ -227,7 +227,7 @@ export const updateMilestoneSchema = z
     description: z.string().optional(),
     color: colorString.optional(),
     startDate: dateString.optional(),
-    targetDate: dateString.optional(),
+    targetDate: dateString.nullable().optional(),
     labelId: z.number().int().positive().nullable().optional(),
     urgency: priorityLevel.optional(),
     importance: priorityLevel.optional(),

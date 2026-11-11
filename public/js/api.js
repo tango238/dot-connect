@@ -98,6 +98,7 @@ export const api = {
   createMilestone: (input) => request('POST', '/api/milestones', input),
   updateMilestone: (id, input) => request('PATCH', `/api/milestones/${id}`, input),
   completeMilestone: (id) => request('POST', `/api/milestones/${id}/complete`),
+  skipMilestone: (id) => request('POST', `/api/milestones/${id}/skip`),
   reopenMilestone: (id) => request('POST', `/api/milestones/${id}/reopen`),
   deleteMilestone: (id) => request('DELETE', `/api/milestones/${id}`),
 

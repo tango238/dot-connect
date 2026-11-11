@@ -9,12 +9,19 @@ export function completionPct(milestone) {
   return milestone.linkedCount ? Math.round((milestone.doneCount / milestone.linkedCount) * 100) : 0
 }
 
+/** 期限の近い順。期限なし(null)は期限ありの後ろ。 */
+export function compareTargetDate(a, b) {
+  const x = a.targetDate ?? '9999-99-99'
+  const y = b.targetDate ?? '9999-99-99'
+  return x < y ? -1 : x > y ? 1 : a.id - b.id
+}
+
 /** Active (not-done) milestones annotated with their completion percentage,
  * in the shape the sidebar list renders from. Ordered like the plan page:
  * priority (urgency + importance) first, then the nearest target date. */
 export function activeMilestonesWithProgress(milestones) {
   return milestones
-    .filter((m) => m.status !== 'done')
+    .filter((m) => m.status === 'active')
     .map((m) => ({ ...m, pct: completionPct(m) }))
-    .sort((a, b) => comparePriority(a, b) || (a.targetDate < b.targetDate ? -1 : a.targetDate > b.targetDate ? 1 : a.id - b.id))
+    .sort((a, b) => comparePriority(a, b) || compareTargetDate(a, b))
 }

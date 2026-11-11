@@ -90,6 +90,29 @@ describe('milestoneRepo.complete / reopen', () => {
   })
 })
 
+describe('milestoneRepo.skip', () => {
+  test('sets status skipped and drops the target date, keeping linked todos', () => {
+    const m = makeMilestone()
+    const todo = todoRepo.create(db, { title: 't', milestoneId: m.id })
+    const skipped = milestoneRepo.skip(db, m.id)
+    expect(skipped?.status).toBe('skipped')
+    expect(skipped?.targetDate).toBeNull()
+    expect(todoRepo.getById(db, todo.id)?.milestoneId).toBe(m.id)
+  })
+
+  test('returns null for a missing milestone', () => {
+    expect(milestoneRepo.skip(db, 999)).toBeNull()
+  })
+
+  test('reopen brings a skipped milestone back to active without a date', () => {
+    const m = makeMilestone()
+    milestoneRepo.skip(db, m.id)
+    const reopened = milestoneRepo.reopen(db, m.id)
+    expect(reopened?.status).toBe('active')
+    expect(reopened?.targetDate).toBeNull()
+  })
+})
+
 // マイルストーンを消すと、紐付いていたTODOは FK の ON DELETE SET NULL で
 // milestone_id が NULL になる —— 画面のマイルストーンチップが消える、目に
 // 見える編集なので「最終更新」に数える。カスケードはSQLite側で起きるため

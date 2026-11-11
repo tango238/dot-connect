@@ -136,9 +136,56 @@ function rebuildDispatchEventsTable(db: Database): void {
   db.exec('PRAGMA foreign_keys = ON')
 }
 
+// 「見送り」ステータスの追加で、milestones は (a) status の CHECK に
+// 'skipped' を含め、(b) target_date を NULL 可にする必要が出た。SQLite は
+// CHECK も NOT NULL も ALTER で変えられないので、旧い形の表は作り直す。
+// todos から FK で参照されているため、新表を作って旧表を DROP し、新表を
+// 元の名前へ RENAME する(旧表を RENAME すると参照側の FK が旧名を指す)。
+function milestonesNeedsRebuild(db: Database): boolean {
+  const targetDate = columnsOf(db, 'milestones').find((c) => c.name === 'target_date')
+  if (targetDate?.notnull === 1) {
+    return true
+  }
+  const row = db.query(`SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'milestones'`).get() as {
+    sql: string
+  } | null
+  return row !== null && !row.sql.includes("'skipped'")
+}
+
+function rebuildMilestonesTable(db: Database): void {
+  db.exec('PRAGMA foreign_keys = OFF')
+  const rebuild = db.transaction(() => {
+    db.exec(`CREATE TABLE milestones_new (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      title TEXT NOT NULL,
+      description TEXT DEFAULT '',
+      color TEXT DEFAULT '#6ca4f8',
+      start_date TEXT NOT NULL,
+      target_date TEXT,
+      status TEXT NOT NULL DEFAULT 'active' CHECK(status IN ('active','done','skipped')),
+      done_at TEXT,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      label_id INTEGER REFERENCES labels(id) ON DELETE SET NULL,
+      urgency INTEGER NOT NULL DEFAULT 1 CHECK(urgency BETWEEN 1 AND 5),
+      importance INTEGER NOT NULL DEFAULT 1 CHECK(importance BETWEEN 1 AND 5)
+    )`)
+    db.exec(`INSERT INTO milestones_new
+      (id, title, description, color, start_date, target_date, status, done_at, created_at, label_id, urgency, importance)
+      SELECT id, title, description, color, start_date, target_date, status, done_at, created_at, label_id, urgency, importance
+      FROM milestones`)
+    db.exec('DROP TABLE milestones')
+    db.exec('ALTER TABLE milestones_new RENAME TO milestones')
+  })
+  rebuild()
+  db.exec('PRAGMA foreign_keys = ON')
+}
+
 // Rebuilds any table found in an older, incompatible shape. Safe to call on
 // every startup: a no-op once the schema is already up to date.
 export function rebuildLegacyTables(db: Database): void {
+  if (milestonesNeedsRebuild(db)) {
+    rebuildMilestonesTable(db)
+  }
   if (todosNeedsRebuild(db)) {
     rebuildTodosTable(db)
   }

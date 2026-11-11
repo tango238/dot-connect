@@ -5,6 +5,7 @@
 
 import { computeRange, hasValidRange, posPct } from './lib/planRange.js'
 import { dueTodos, groupDueTodosByMilestone } from './lib/planTodos.js'
+import { compareTargetDate } from './lib/milestoneProgress.js'
 import { comparePriority, priorityBadge } from './lib/priority.js'
 import { getState } from './state.js'
 import { openTodoDetail } from './todoDetailDialog.js'
@@ -83,8 +84,10 @@ function invalidDatesNote(excludedCount) {
 
 export function renderPlan() {
   const allMilestones = getState().milestones
-  const milestones = allMilestones.filter(hasValidRange)
-  const excludedCount = allMilestones.length - milestones.length
+  // 見送りは期限を外しているので、計画の線表には出さない(除外の注記にも数えない)。
+  const plannable = allMilestones.filter((m) => m.status !== 'skipped')
+  const milestones = plannable.filter(hasValidRange)
+  const excludedCount = plannable.length - milestones.length
   const today = todayIso()
   const todos = dueTodos(getState().todos)
   const { start, end } = computeRange(milestones, today, todos.map((t) => t.dueDate))
@@ -111,7 +114,7 @@ export function renderPlan() {
     (a, b) =>
       Number(a.status === 'done') - Number(b.status === 'done') ||
       (a.status !== 'done' ? comparePriority(a, b) : 0) ||
-      (a.targetDate < b.targetDate ? -1 : a.targetDate > b.targetDate ? 1 : a.id - b.id)
+      compareTargetDate(a, b)
   )
   // TODOs whose milestone was excluded for bad dates have no row to sit
   // under, so they fall into the trailing group rather than disappearing.

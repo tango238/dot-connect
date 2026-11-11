@@ -572,3 +572,33 @@ describe('rebuild atomicity (interruption simulation)', () => {
     db.close()
   })
 })
+
+describe('milestones table rebuild for 見送り', () => {
+  test('an old NOT NULL target_date / two-value status table is rebuilt, keeping rows and todo links', () => {
+    const old = new Database(dbPath, { create: true })
+    old.exec(`CREATE TABLE milestones (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      title TEXT NOT NULL,
+      description TEXT DEFAULT '',
+      color TEXT DEFAULT '#6ca4f8',
+      start_date TEXT NOT NULL,
+      target_date TEXT NOT NULL,
+      status TEXT NOT NULL DEFAULT 'active' CHECK(status IN ('active','done')),
+      done_at TEXT,
+      created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    )`)
+    old.exec(`INSERT INTO milestones (title, start_date, target_date) VALUES ('old', '2026-01-01', '2026-02-01')`)
+    old.close()
+
+    const db = createDatabase(dbPath)
+    const m = milestoneRepo.listAll(db)[0]!
+    expect(m.title).toBe('old')
+    expect(m.targetDate).toBe('2026-02-01')
+    const todo = todoRepo.create(db, { title: 't', milestoneId: m.id })
+    const skipped = milestoneRepo.skip(db, m.id)
+    expect(skipped?.status).toBe('skipped')
+    expect(skipped?.targetDate).toBeNull()
+    expect(todoRepo.getById(db, todo.id)?.milestoneId).toBe(m.id)
+    db.close()
+  })
+})

@@ -30,9 +30,16 @@ function priorityNote(item: Prioritized): string {
   return item.urgency === 1 && item.importance === 1 ? '' : `、緊${item.urgency} 重${item.importance}`
 }
 
+// 期限なし(NULL)は期限ありの後ろ。
+function compareTargetDate(a: MilestoneWithProgress, b: MilestoneWithProgress): number {
+  const x = a.targetDate ?? '9999-99-99'
+  const y = b.targetDate ?? '9999-99-99'
+  return x < y ? -1 : x > y ? 1 : a.id - b.id
+}
+
 function milestoneLine(m: MilestoneWithProgress): string {
   const pct = m.linkedCount ? Math.round((m.doneCount / m.linkedCount) * 100) : 0
-  return `- [ ] ${m.title}(期限 ${md(m.targetDate)}、進捗 ${pct}%${priorityNote(m)})`
+  return `- [ ] ${m.title}(${m.targetDate ? `期限 ${md(m.targetDate)}` : '期限なし'}、進捗 ${pct}%${priorityNote(m)})`
 }
 
 function todoLine(t: Todo): string {
@@ -66,17 +73,17 @@ export function buildWeeklyGoalDraft(db: Database, weekStart: string, today: str
   const inWeek = (date: string | null): date is string => date !== null && date >= weekStart && date <= weekEnd
   const overdueBeforeWeek = (date: string | null): date is string => date !== null && date < weekStart && date < today
 
-  const milestones = milestoneRepo.listAll(db).filter((m) => m.status !== 'done')
+  const milestones = milestoneRepo.listAll(db).filter((m) => m.status === 'active')
   const todos = todoRepo.listAll(db).filter((t) => t.status !== 'done')
 
-  const dueMilestones = milestones.filter((m) => inWeek(m.targetDate)).sort(byDateThenPriority((m) => m.targetDate))
+  const dueMilestones = milestones.filter((m) => inWeek(m.targetDate)).sort(byDateThenPriority((m) => m.targetDate ?? ''))
   const overdueMilestones = milestones
     .filter((m) => overdueBeforeWeek(m.targetDate))
-    .sort(byDateThenPriority((m) => m.targetDate))
+    .sort(byDateThenPriority((m) => m.targetDate ?? ''))
   const pickedMilestones = new Set([...dueMilestones, ...overdueMilestones].map((m) => m.id))
   const priorityMilestones = milestones
     .filter((m) => !pickedMilestones.has(m.id) && isHighPriority(m))
-    .sort((a, b) => comparePriority(a, b) || (a.targetDate < b.targetDate ? -1 : a.targetDate > b.targetDate ? 1 : a.id - b.id))
+    .sort((a, b) => comparePriority(a, b) || compareTargetDate(a, b))
 
   const dueTodos = todos.filter((t) => inWeek(t.dueDate)).sort(byDateThenPriority((t) => t.dueDate as string))
   const overdueTodos = todos.filter((t) => overdueBeforeWeek(t.dueDate)).sort(byDateThenPriority((t) => t.dueDate as string))

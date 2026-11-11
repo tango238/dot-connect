@@ -8,7 +8,7 @@ const WEEK_MS = 7 * DAY_MS
 /** Rejects anything that isn't a well-formed YYYY-MM-DD that Date can parse
  * (guards against a single bad milestone taking the whole plan page down). */
 export function hasValidRange(m) {
-  if (!DATE_RE.test(m.startDate) || !DATE_RE.test(m.targetDate)) return false
+  if (!DATE_RE.test(m.startDate) || !DATE_RE.test(m.targetDate ?? '')) return false
   const start = new Date(`${m.startDate}T00:00:00Z`)
   const end = new Date(`${m.targetDate}T00:00:00Z`)
   return !Number.isNaN(start.getTime()) && !Number.isNaN(end.getTime())

@@ -70,6 +70,13 @@ function msFoot(m, openCount) {
   // Editing is allowed regardless of status — color/title/description/dates
   // are all fine to correct after completion too.
   const editBtn = `<button class="btn btn-ghost" data-action="edit-ms" data-id="${m.id}">編集</button>`
+  if (m.status === 'skipped') {
+    return `<div class="ms-foot">
+      ${editBtn}
+      <button class="btn btn-ghost" data-action="reopen-ms" data-id="${m.id}">進行中に戻す</button>
+      <button class="btn btn-ghost del-btn" aria-label="マイルストーンを削除" title="削除" data-action="delete-ms" data-id="${m.id}">🗑</button>
+    </div>`
+  }
   if (m.status === 'done') {
     return `<div class="ms-foot">
       ${editBtn}
@@ -80,6 +87,7 @@ function msFoot(m, openCount) {
   return `<div class="ms-foot">
     ${editBtn}
     <button class="btn ${openCount === 0 ? 'btn-accent' : ''}" data-action="complete-ms" data-id="${m.id}">✔ 完了にする${openCount ? `(残${openCount}件)` : ''}</button>
+    <button class="btn btn-ghost" data-action="skip-ms" data-id="${m.id}" title="見送りにする(期限は外れます)">見送り</button>
     <button class="btn btn-ghost del-btn" aria-label="マイルストーンを削除" title="削除" data-action="delete-ms" data-id="${m.id}">🗑</button>
   </div>`
 }
@@ -117,7 +125,7 @@ function editMsForm(m) {
     </div>
     <div class="form-field">
       <label for="ms-edit-target-${m.id}">期限</label>
-      <input id="ms-edit-target-${m.id}" type="date" required value="${escapeHtml(m.targetDate.slice(0, 10))}">
+      <input id="ms-edit-target-${m.id}" type="date" value="${escapeHtml((m.targetDate ?? '').slice(0, 10))}">
     </div>
     <div class="form-actions">
       <button type="button" class="btn btn-accent" data-action="save-edit-ms" data-id="${m.id}">保存</button>
@@ -147,17 +155,20 @@ function msCard(m) {
   const total = m.linkedCount
   const open = total - dn
   const pct = total ? Math.round((dn / total) * 100) : 0
-  const late = m.status !== 'done' && m.targetDate < todayIso()
+  const closed = m.status !== 'active'
+  const late = !closed && m.targetDate !== null && m.targetDate < todayIso()
   const dueOrDone =
     m.status === 'done'
       ? `<span class="ms-done-badge">完了 ${m.doneAt ? escapeHtml(m.doneAt.slice(0, 10)) : ''}</span>`
-      : `<span class="ms-due ${late ? 'late' : ''}">期限 ${formatMonthDay(m.targetDate)}</span>`
+      : m.status === 'skipped'
+        ? `<span class="ms-done-badge ms-skipped-badge">見送り</span>`
+        : `<span class="ms-due ${late ? 'late' : ''}">${m.targetDate ? `期限 ${formatMonthDay(m.targetDate)}` : '期限なし'}</span>`
   const addBtn =
-    m.status === 'done'
+    closed
       ? ''
       : `<button class="btn ms-add" data-action="toggle-add-todo" data-id="${m.id}">＋ TODOを追加</button>`
 
-  return `<div class="ms-card ${m.status === 'done' ? 'is-done' : ''}" data-ms-id="${m.id}">
+  return `<div class="ms-card ${m.status === 'done' ? 'is-done' : ''} ${m.status === 'skipped' ? 'is-skipped' : ''}" data-ms-id="${m.id}">
     <div class="ms-card-head"><span class="ms-dot" style="background:${escapeHtml(m.color)}"></span><h2>${escapeHtml(m.title)}</h2>${dueOrDone}</div>
     <div class="ms-card-meta">${labelChip(m)}${priorityChip(m)}</div>
     <p class="ms-desc">${escapeHtml(m.description)}</p>
@@ -194,7 +205,8 @@ function groupHeader(g) {
 
 export function renderMilestones() {
   const { milestones } = getState()
-  const active = milestones.filter((m) => m.status !== 'done')
+  const active = milestones.filter((m) => m.status === 'active')
+  const skipped = milestones.filter((m) => m.status === 'skipped')
   const done = milestones.filter((m) => m.status === 'done')
 
   // Only label the groups when there's more than one — a single-group
@@ -208,7 +220,11 @@ export function renderMilestones() {
   const doneHtml = done.length
     ? `<div class="ms-group-label">完了したマイルストーン — ${done.length}件</div>${done.map(msCard).join('')}`
     : ''
-  $('#ms-grid').innerHTML = activeHtml + doneHtml
+  // 表示順: ステータスなし(進行中) → 見送り → 完了
+  const skippedHtml = skipped.length
+    ? `<div class="ms-group-label">見送ったマイルストーン — ${skipped.length}件</div>${skipped.map(msCard).join('')}`
+    : ''
+  $('#ms-grid').innerHTML = activeHtml + skippedHtml + doneHtml
 }
 
 function labelSelectOptions(selectedId) {
@@ -321,6 +337,17 @@ async function completeMilestone(id) {
   }
 }
 
+async function skipMilestone(id) {
+  const m = getState().milestones.find((x) => x.id === id)
+  try {
+    await api.skipMilestone(id)
+    toast(`「${escapeHtml(m?.title ?? '')}」を見送りにしました(期限は外しました)`)
+    await refreshBoth()
+  } catch (err) {
+    toastError(err.message)
+  }
+}
+
 async function reopenMilestone(id) {
   const m = getState().milestones.find((x) => x.id === id)
   try {
@@ -350,9 +377,9 @@ async function saveMilestoneEdit(id) {
   const targetDate = $(`#ms-edit-target-${id}`)?.value
   const labelRaw = $(`#ms-edit-label-${id}`)?.value
   const errorEl = $(`#ms-edit-error-${id}`)
-  if (!title || !startDate || !targetDate) {
+  if (!title || !startDate) {
     if (errorEl) {
-      errorEl.textContent = 'タイトル・開始日・期限は必須です'
+      errorEl.textContent = 'タイトル・開始日は必須です'
       errorEl.hidden = false
     }
     return
@@ -363,7 +390,8 @@ async function saveMilestoneEdit(id) {
       description: $(`#ms-edit-desc-${id}`)?.value.trim() ?? '',
       color: $(`#ms-edit-color-${id}`)?.value,
       startDate,
-      targetDate,
+      // 空欄は期限を外す(null)
+      targetDate: targetDate || null,
       labelId: labelRaw ? Number(labelRaw) : null,
       urgency: Number($(`#ms-edit-urgency-${id}`)?.value ?? 1),
       importance: Number($(`#ms-edit-importance-${id}`)?.value ?? 1),
@@ -439,6 +467,8 @@ function handleGridClick(ev) {
     saveMilestoneEdit(id)
   } else if (action === 'complete-ms') {
     completeMilestone(id)
+  } else if (action === 'skip-ms') {
+    skipMilestone(id)
   } else if (action === 'reopen-ms') {
     reopenMilestone(id)
   } else if (action === 'delete-ms') {

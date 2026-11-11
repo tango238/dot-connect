@@ -18,8 +18,8 @@ const MIGRATIONS: readonly string[] = [
     description TEXT DEFAULT '',
     color TEXT DEFAULT '#6ca4f8',
     start_date TEXT NOT NULL,
-    target_date TEXT NOT NULL,
-    status TEXT NOT NULL DEFAULT 'active' CHECK(status IN ('active','done')),
+    target_date TEXT,
+    status TEXT NOT NULL DEFAULT 'active' CHECK(status IN ('active','done','skipped')),
     done_at TEXT,
     created_at TEXT NOT NULL DEFAULT (datetime('now'))
   )`,

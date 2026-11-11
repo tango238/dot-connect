@@ -1,6 +1,6 @@
 export type TodoStatus = 'open' | 'done'
 export type SessionState = 'working' | 'blocked' | 'done' | 'idle' | null
-export type MilestoneStatus = 'active' | 'done'
+export type MilestoneStatus = 'active' | 'done' | 'skipped'
 export type PullRequestState = 'open' | 'closed' | 'merged'
 
 export interface Label {
@@ -29,7 +29,8 @@ export interface Milestone {
   readonly description: string
   readonly color: string
   readonly startDate: string
-  readonly targetDate: string
+  // NULL は期限なし。見送り(skipped)にすると外れる。
+  readonly targetDate: string | null
   readonly status: MilestoneStatus
   readonly doneAt: string | null
   // 緊急度・重要度(1〜5、1 が最低/未設定、5 が最高)。計画ページの並び順に

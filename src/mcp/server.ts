@@ -141,8 +141,16 @@ function registerMilestoneTools(server: McpServer, client: DotConnectClient): vo
     (args) => milestoneTools.completeMilestone(client, args)
   )
   server.registerTool(
+    'skip_milestone',
+    {
+      description: 'マイルストーンを見送りにする。期限は外れる。未完了のTODOが残っていてもよい。',
+      inputSchema: milestoneTools.idOnlyShape,
+    },
+    (args) => milestoneTools.skipMilestone(client, args)
+  )
+  server.registerTool(
     'reopen_milestone',
-    { description: '完了済みのマイルストーンを未完了に戻す。', inputSchema: milestoneTools.idOnlyShape },
+    { description: '完了済み・見送りのマイルストーンを進行中に戻す。', inputSchema: milestoneTools.idOnlyShape },
     (args) => milestoneTools.reopenMilestone(client, args)
   )
   server.registerTool(

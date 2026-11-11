@@ -9,7 +9,7 @@ interface MilestoneRow {
   description: string
   color: string
   start_date: string
-  target_date: string
+  target_date: string | null
   status: MilestoneStatus
   done_at: string | null
   urgency: number
@@ -125,7 +125,8 @@ export interface UpdateMilestoneInput {
   readonly description?: string
   readonly color?: string
   readonly startDate?: string
-  readonly targetDate?: string
+  // null で期限を外す(見送り用)。
+  readonly targetDate?: string | null
   // undefined leaves the label untouched; null explicitly unlinks it (same
   // convention as todos' milestoneId).
   readonly labelId?: number | null
@@ -190,6 +191,15 @@ export function reopen(db: Database, id: number): Milestone | null {
     return null
   }
   db.run(`UPDATE milestones SET status = 'active', done_at = NULL WHERE id = ?`, [id])
+  return getById(db, id)
+}
+
+// 見送り: 期限を外して status を skipped にする。TODOの紐付けはそのまま残す。
+export function skip(db: Database, id: number): Milestone | null {
+  if (getById(db, id) === null) {
+    return null
+  }
+  db.run(`UPDATE milestones SET status = 'skipped', target_date = NULL, done_at = NULL WHERE id = ?`, [id])
   return getById(db, id)
 }
 

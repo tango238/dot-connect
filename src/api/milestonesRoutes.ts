@@ -13,8 +13,8 @@ const LABEL_GONE_MESSAGE = 'そのラベルは存在しません'
 
 function assertDateOrderAgainstExisting(existing: Milestone, input: UpdateMilestoneInput): void {
   const startDate = input.startDate ?? existing.startDate
-  const targetDate = input.targetDate ?? existing.targetDate
-  if (targetDate < startDate) {
+  const targetDate = input.targetDate === undefined ? existing.targetDate : input.targetDate
+  if (targetDate !== null && targetDate < startDate) {
     throw new ValidationError('targetDate: targetDate must be on or after startDate')
   }
 }
@@ -79,6 +79,19 @@ function completeMilestoneHandler(deps: AppDependencies) {
   }
 }
 
+function skipMilestoneHandler(deps: AppDependencies) {
+  return async (c: Context) => {
+    return handle(c, async () => {
+      const { id } = parseOrThrow(idParamSchema, c.req.param())
+      const skipped = milestoneRepo.skip(deps.db, id)
+      if (skipped === null) {
+        return fail(c, 404, `Milestone ${id} not found`)
+      }
+      return ok(c, skipped)
+    })
+  }
+}
+
 function reopenMilestoneHandler(deps: AppDependencies) {
   return async (c: Context) => {
     return handle(c, async () => {
@@ -112,6 +125,7 @@ export function createMilestonesRoutes(deps: AppDependencies): Hono {
   app.post('/', createMilestoneHandler(deps))
   app.patch('/:id', updateMilestoneHandler(deps))
   app.post('/:id/complete', completeMilestoneHandler(deps))
+  app.post('/:id/skip', skipMilestoneHandler(deps))
   app.post('/:id/reopen', reopenMilestoneHandler(deps))
   app.delete('/:id', deleteMilestoneHandler(deps))
 

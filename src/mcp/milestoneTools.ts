@@ -25,7 +25,7 @@ export const updateMilestoneShape = {
   description: z.string().optional(),
   color: colorString,
   startDate: dateString.optional(),
-  targetDate: dateString.optional(),
+  targetDate: dateString.nullable().optional().describe('null で期限を外す'),
   labelId: z.number().int().positive().nullable().optional().describe('null で紐付け解除'),
   urgency: priorityLevel.optional().describe(URGENCY_DESCRIPTION),
   importance: priorityLevel.optional().describe(IMPORTANCE_DESCRIPTION),
@@ -61,7 +61,7 @@ export function updateMilestone(
     description?: string
     color?: string
     startDate?: string
-    targetDate?: string
+    targetDate?: string | null
     labelId?: number | null
     urgency?: number
     importance?: number
@@ -77,6 +77,11 @@ export function updateMilestone(
 // rather than just a bare "conflict".
 export function completeMilestone(client: DotConnectClient, args: { id: number }) {
   return runTool(() => client.request('POST', `/api/milestones/${args.id}/complete`))
+}
+
+// 見送り: 期限を外して status を skipped にする(未完了TODOがあっても可)。
+export function skipMilestone(client: DotConnectClient, args: { id: number }) {
+  return runTool(() => client.request('POST', `/api/milestones/${args.id}/skip`))
 }
 
 export function reopenMilestone(client: DotConnectClient, args: { id: number }) {

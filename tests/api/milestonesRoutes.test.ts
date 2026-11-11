@@ -356,3 +356,25 @@ describe('DELETE /api/milestones/:id', () => {
     expect(res.status).toBe(404)
   })
 })
+
+describe('POST /api/milestones/:id/skip', () => {
+  test('skips a milestone and clears its target date', async () => {
+    const { app, deps } = createTestApp()
+    const milestone = milestoneRepo.create(deps.db, {
+      title: 'S',
+      startDate: '2026-01-01',
+      targetDate: '2026-02-01',
+    })
+    const res = await app.request(`/api/milestones/${milestone.id}/skip`, { method: 'POST' })
+    expect(res.status).toBe(200)
+    const body = await readJson(res)
+    expect(body.data.status).toBe('skipped')
+    expect(body.data.targetDate).toBeNull()
+  })
+
+  test('returns 404 for a missing milestone', async () => {
+    const { app } = createTestApp()
+    const res = await app.request('/api/milestones/999/skip', { method: 'POST' })
+    expect(res.status).toBe(404)
+  })
+})
