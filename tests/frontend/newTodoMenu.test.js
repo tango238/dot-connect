@@ -24,19 +24,22 @@ describe('skillSessionDisabledReason', () => {
 })
 
 describe('newTodoMenuItems', () => {
-  test('offers the form first, then the GitHub issue import, then the skill session', () => {
+  test('offers the form first, then the GitHub issue import, then the skill session, then 対応してから登録', () => {
     const items = newTodoMenuItems(ready)
-    expect(items.map((i) => i.action)).toEqual(['form', 'github-issues', 'skill-session'])
+    expect(items.map((i) => i.action)).toEqual(['form', 'github-issues', 'skill-session', 'adhoc-session'])
+    expect(items[3].label).toBe('対応してから登録')
     expect(items.every((i) => i.label.length > 0 && i.hint.length > 0)).toBe(true)
     expect(items.every((i) => i.disabled === false)).toBe(true)
     expect(items[2].title).toBeUndefined()
   })
-  test('greys out only the skill session, with the reason as its title', () => {
+  test('greys out the herdr-backed options, with the reason as their title', () => {
     const items = newTodoMenuItems({ capabilities: { dispatch: false }, settings: null })
     expect(items[0].disabled).toBe(false)
     // The issue import does not need herdr — only gh, which the server checks.
     expect(items[1].disabled).toBe(false)
     expect(items[2].disabled).toBe(true)
     expect(items[2].title).toContain('herdr')
+    expect(items[3].disabled).toBe(true)
+    expect(items[3].title).toContain('herdr')
   })
 })

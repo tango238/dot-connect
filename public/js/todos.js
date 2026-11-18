@@ -330,6 +330,19 @@ async function startSkillSession() {
   }
 }
 
+async function startAdhocSession() {
+  try {
+    await api.startAdhocSession()
+    toast('テンポラリフォルダで Claude Code を開きました。作業が済んだら /dot-connect で TODO に記録します')
+  } catch (err) {
+    if (err.extra?.code === 'skill_not_installed') {
+      toastWarning(err.message)
+    } else {
+      toastError(err.message)
+    }
+  }
+}
+
 // The server waits (up to ~90 s) for the interview's result file, so the
 // caller keeps the button busy for the duration.
 async function finishGrill(id) {
@@ -545,9 +558,9 @@ export function initTodos() {
     })
   })
 
-  // 新規TODO は3通り: フォームで1件登録するか、GitHub の Issue 一覧から選んで
+  // 新規TODO は4通り: フォームで1件登録するか、GitHub の Issue 一覧から選んで
   // 取り込むか、/dot-connect スキルのセッションを開いて依頼文から複数まとめて
-  // 登録するか。フォームが開いているときは、ボタンはそれを閉じるだけ。
+  // 登録するか、先に Claude Code で対応してから /dot-connect で記録するか。フォームが開いているときは、ボタンはそれを閉じるだけ。
   $('#new-todo-toggle').addEventListener('click', (ev) => {
     const form = $('#new-todo-form')
     if (!form.hidden) {
@@ -570,6 +583,8 @@ export function initTodos() {
           openIssueImportDialog()
         } else if (action === 'skill-session') {
           void withButtonBusy(toggleBtn, startSkillSession)
+        } else if (action === 'adhoc-session') {
+          void withButtonBusy(toggleBtn, startAdhocSession)
         }
       },
     })

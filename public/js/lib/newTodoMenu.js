@@ -1,4 +1,4 @@
-// The 新規TODO button's three ways of creating TODOs. Pure, so which option is
+// The 新規TODO button's four ways of creating TODOs. Pure, so which option is
 // offered (and why one is greyed out) stays unit-testable like the other
 // modules under lib/.
 
@@ -20,7 +20,7 @@ export function skillSessionDisabledReason({ capabilities, settings }) {
 }
 
 /**
- * @returns {Array<{action: 'form' | 'github-issues' | 'skill-session', label: string, hint: string, disabled: boolean, title?: string}>}
+ * @returns {Array<{action: 'form' | 'github-issues' | 'skill-session' | 'adhoc-session', label: string, hint: string, disabled: boolean, title?: string}>}
  */
 export function newTodoMenuItems({ capabilities, settings }) {
   const skillReason = skillSessionDisabledReason({ capabilities, settings })
@@ -43,6 +43,15 @@ export function newTodoMenuItems({ capabilities, settings }) {
       action: 'skill-session',
       label: 'プロンプトから複数登録',
       hint: 'herdr に Claude Code を開き、/dot-connect で依頼文を TODO に分解',
+      disabled: skillReason !== null,
+      ...(skillReason !== null ? { title: skillReason } : {}),
+    },
+    {
+      // Same requirements as skill-session: herdr to open the session, and
+      // the skill for the final /dot-connect that registers it.
+      action: 'adhoc-session',
+      label: '対応してから登録',
+      hint: 'テンポラリフォルダで Claude Code を開き、作業後に /dot-connect で完了TODOとして記録',
       disabled: skillReason !== null,
       ...(skillReason !== null ? { title: skillReason } : {}),
     },

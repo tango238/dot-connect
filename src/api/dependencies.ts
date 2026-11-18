@@ -38,6 +38,9 @@ export interface AppDependencies {
   // See Config.notesDir / Config.claudeSkillsDir.
   readonly notesDir: string
   readonly claudeSkillsDir: string
+  // Parent of the throwaway dirs that 「対応してから登録」 sessions run in
+  // (skillSessionService.ts). Omitted → the OS temp dir; tests point it at a tmp dir.
+  readonly adhocTempRoot?: string
   // Detects herdr/claude availability for the current platform. Called
   // lazily and cached by the caller (see server.ts's buildDependencies) so
   // the `which` probes only ever run once per process.

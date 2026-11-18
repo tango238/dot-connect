@@ -93,6 +93,7 @@ export const api = {
   // セッションを開く。返るのは { workspaceId, tabId, paneId }。409 の
   // `code: 'skill_not_installed'` はスキル未インストール。
   startSkillSession: () => request('POST', '/api/herdr/skill-session'),
+  startAdhocSession: () => request('POST', '/api/herdr/adhoc-session'),
 
   listMilestones: () => request('GET', '/api/milestones'),
   createMilestone: (input) => request('POST', '/api/milestones', input),

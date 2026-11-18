@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, test } from 'bun:test'
-import { mkdtempSync, rmSync } from 'node:fs'
+import { existsSync, mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import * as todoRepo from '../../src/db/todoRepo'
@@ -81,6 +81,57 @@ describe('POST /api/herdr/skill-session', () => {
     const res = await app.request('/api/herdr/skill-session', { method: 'POST' })
     expect(res.status).toBe(400)
     expect((await readJson(res)).error).toContain('macOS')
+  })
+})
+
+describe('POST /api/herdr/adhoc-session', () => {
+  let tmp: string
+  beforeEach(() => {
+    tmp = mkdtempSync(join(tmpdir(), 'dot-connect-adhoc-api-'))
+  })
+  afterEach(() => {
+    rmSync(tmp, { recursive: true, force: true })
+  })
+
+  function adhocApp(overrides: Parameters<typeof createTestApp>[0] = {}) {
+    return createTestApp({
+      claudeSkillsDir: join(tmp, 'skills'),
+      notesDir: join(tmp, 'notes'),
+      adhocTempRoot: tmp,
+      ...overrides,
+    })
+  }
+
+  test('opens a bare claude session in a fresh marked temp dir', async () => {
+    const { app, deps } = adhocApp()
+    installSkill(deps.claudeSkillsDir)
+
+    const res = await app.request('/api/herdr/adhoc-session', { method: 'POST' })
+    const body = await readJson(res)
+
+    expect(res.status).toBe(200)
+    const cwd = body.data.cwd as string
+    expect(cwd.startsWith(join(tmp, 'dot-connect-adhoc-'))).toBe(true)
+    expect(existsSync(join(cwd, '.dot-connect-adhoc'))).toBe(true)
+    const herdr = deps.herdr as FakeHerdrClient
+    expect(herdr.createWorkspaceCalls[0]).toMatchObject({ cwd })
+    expect(herdr.runInPaneCalls).toEqual([{ paneId: 'w1:p1', command: 'claude' }])
+    expect(herdr.sendTextCalls).toHaveLength(0)
+    expect(herdr.focusTabCalls).toEqual(['w1:t1'])
+  })
+
+  test('returns 409 skill_not_installed when the skill is missing', async () => {
+    const { app, deps } = adhocApp()
+    const res = await app.request('/api/herdr/adhoc-session', { method: 'POST' })
+    expect(res.status).toBe(409)
+    expect((await readJson(res)).code).toBe('skill_not_installed')
+    expect((deps.herdr as FakeHerdrClient).createWorkspaceCalls).toHaveLength(0)
+  })
+
+  test('returns 400 outside macOS', async () => {
+    const { app } = adhocApp({ platform: 'linux' })
+    const res = await app.request('/api/herdr/adhoc-session', { method: 'POST' })
+    expect(res.status).toBe(400)
   })
 })
 

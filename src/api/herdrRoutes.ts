@@ -2,7 +2,7 @@ import { Hono } from 'hono'
 import { syncStatuses } from '../herdr/statusSync'
 import { logger } from '../logger'
 import { BadRequestError } from '../services/errors'
-import { startSkillSession } from '../services/skillSessionService'
+import { startAdhocSession, startSkillSession } from '../services/skillSessionService'
 import type { AppDependencies } from './dependencies'
 import { handle, ok, fail } from './response'
 
@@ -37,13 +37,14 @@ export function createHerdrRoutes(deps: AppDependencies): Hono {
   })
 
   // 「プロンプトから複数登録」: /dot-connect を打ち込んだ Claude Code の
-  // セッションを開く(skillSessionService.ts)。TODO に属さないので /todos
-  // ではなくここ。herdr を使うので macOS 限定。
-  app.post('/skill-session', (c) => handle(c, async () => {
+  // セッションを開く。「対応してから登録」: テンポラリディレクトリで素の
+  // Claude Code を開く(どちらも skillSessionService.ts)。TODO に属さないので
+  // /todos ではなくここ。herdr を使うので macOS 限定。
+  const sessionOptions = () => {
     if (deps.platform !== 'darwin') {
       throw new BadRequestError('この機能は macOS でのみ利用できます')
     }
-    const workspace = await startSkillSession(deps.herdr, {
+    return {
       claudeBin: deps.claudeBin,
       claudeSkillsDir: deps.claudeSkillsDir,
       notesDir: deps.notesDir,
@@ -53,8 +54,13 @@ export function createHerdrRoutes(deps: AppDependencies): Hono {
       pollIntervalMs: deps.dispatchPollIntervalMs,
       sleep: deps.dispatchSleep,
       settleMs: deps.dispatchSettleMs,
-    })
-    return ok(c, workspace)
+    }
+  }
+  app.post('/skill-session', (c) => handle(c, async () => {
+    return ok(c, await startSkillSession(deps.herdr, sessionOptions()))
+  }))
+  app.post('/adhoc-session', (c) => handle(c, async () => {
+    return ok(c, await startAdhocSession(deps.herdr, { ...sessionOptions(), tempRoot: deps.adhocTempRoot }))
   }))
 
   app.get('/status', (c) => {

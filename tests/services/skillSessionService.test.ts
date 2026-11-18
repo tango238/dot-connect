@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, test } from 'bun:test'
-import { existsSync, mkdtempSync, rmSync } from 'node:fs'
+import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import type { ExecFn } from '../../src/herdr/exec'
@@ -7,6 +7,10 @@ import type { CreatedWorkspace, HerdrClient, HerdrSnapshot } from '../../src/her
 import { ConflictError } from '../../src/services/errors'
 import { installSkill } from '../../src/services/skillInstallService'
 import {
+  ADHOC_MARKER_FILE,
+  ADHOC_SESSION_LABEL,
+  createAdhocDir,
+  startAdhocSession,
   SKILL_INVOCATION_TEXT,
   SKILL_SESSION_LABEL,
   type SkillSessionOptions,
@@ -203,5 +207,40 @@ describe('startSkillSession', () => {
     const client = { ...fakeClient(calls), focusTab: async () => { throw new Error('no tab') } }
     await expect(startSkillSession(client, options())).resolves.toEqual(workspace)
     expect(calls.closeWorkspace).toHaveLength(0)
+  })
+})
+
+describe('createAdhocDir', () => {
+  test('makes a fresh dir with a marker each time', () => {
+    const a = createAdhocDir(tmp, new Date('2026-11-18T01:02:03Z'))
+    const b = createAdhocDir(tmp)
+    expect(a).not.toBe(b)
+    expect(JSON.parse(readFileSync(join(a, ADHOC_MARKER_FILE), 'utf8'))).toEqual({
+      kind: 'dot-connect-adhoc',
+      createdAt: '2026-11-18T01:02:03.000Z',
+    })
+  })
+})
+
+describe('startAdhocSession', () => {
+  test('opens claude in a new temp dir without typing anything', async () => {
+    installSkill(skillsDir)
+    const result = await startAdhocSession(fakeClient(calls), { ...options(), tempRoot: tmp })
+
+    expect(result.workspaceId).toBe('w7')
+    expect(result.cwd.startsWith(join(tmp, 'dot-connect-adhoc-'))).toBe(true)
+    expect(existsSync(join(result.cwd, ADHOC_MARKER_FILE))).toBe(true)
+    expect(calls.createWorkspace).toEqual([{ cwd: result.cwd, label: ADHOC_SESSION_LABEL }])
+    expect(calls.runInPane).toEqual([{ paneId: 'w7:p1', command: 'claude' }])
+    expect(calls.sendText).toHaveLength(0)
+    expect(calls.submitPrompt).toHaveLength(0)
+    expect(calls.focusTab).toEqual(['w7:t1'])
+    // 作業セッションなので、スキルの記録ファイル置き場は作らない。
+    expect(existsSync(notesDir)).toBe(false)
+  })
+
+  test('refuses before creating anything when the skill is missing', async () => {
+    await expect(startAdhocSession(fakeClient(calls), { ...options(), tempRoot: tmp })).rejects.toBeInstanceOf(ConflictError)
+    expect(calls.createWorkspace).toHaveLength(0)
   })
 })
